@@ -62,4 +62,4 @@ Update checks contact GitHub over HTTPS for release information and installers. 
 - **Uninstall:** Open **Windows Settings**, then **Apps**, **Installed apps**, and **Uninstall** on the Auxe row. Remove the optional companion from Chrome separately.
 - **Build:** Run `.\build.ps1` in PowerShell. It uses the .NET Framework compiler on Windows and produces `bin\Auxe.exe` and `bin\AuxeSetup.exe`. Font licenses are in [assets](assets/).
 
-Auxe is made by **Web X Agency**.
+Auxe is developed by **Skipper**.
