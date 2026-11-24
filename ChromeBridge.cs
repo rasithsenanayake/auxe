@@ -124,11 +124,11 @@ sealed class ChromeBridge : IDisposable
         lock (gate) return connections.SelectMany(connection => connection.Sources).ToList();
     }
 
-    public void Route(ChromeSource source, string output)
+    public System.Threading.Tasks.Task Route(ChromeSource source, string output)
     {
-        var connection = source.Connection;
-        ThreadPool.QueueUserWorkItem(_ =>
+        return System.Threading.Tasks.Task.Run(() =>
         {
+            var connection = source.Connection;
             try
             {
                 lock (connection.WriteLock)
@@ -137,8 +137,7 @@ sealed class ChromeBridge : IDisposable
                     WriteFrame(connection.Pipe, Encoding.UTF8.GetBytes(json));
                 }
             }
-            catch (IOException) { }
-            catch (ObjectDisposedException) { }
+            catch (ObjectDisposedException error) { throw new IOException("Chrome disconnected.", error); }
         });
     }
 

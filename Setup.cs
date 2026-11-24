@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
@@ -14,25 +15,32 @@ static class Setup
     const string ExtensionId = "fifgmenkkbfeanfdcjglbpoijipdmklj";
 
     [STAThread]
-    static void Main()
+    static int Main(string[] launchArgs)
     {
+        int priorProcess;
+        if (launchArgs.Length == 2 && launchArgs[0] == "--update" &&
+            int.TryParse(launchArgs[1], out priorProcess) && priorProcess > 0)
+            return Update(priorProcess);
+        bool uninstall = launchArgs.Length == 1 && launchArgs[0] == "--uninstall";
+        bool confirmed = false;
         Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
+        Application.SetCompatibleTextRenderingDefault(true);
         using (var icon = SpeakerArt.Draw(0))
         using (var logo = icon.ToBitmap())
-        using (var bodyFont = new Font("Segoe UI", 10))
-        using (var titleFont = new Font("Segoe UI Semibold", 24))
+        using (var bodyFont = Typography.Text(10.5f))
+        using (var actionFont = Typography.Heading(10))
+        using (var titleFont = Typography.Heading(22))
         using (var window = new SetupWindow
         {
-            Text = "Auxe Setup",
+            Text = uninstall ? "Uninstall Auxe" : "Auxe Setup",
             Icon = icon,
             ClientSize = new Size(430, 252),
             StartPosition = FormStartPosition.CenterScreen,
             FormBorderStyle = FormBorderStyle.None,
             MaximizeBox = false,
             MinimizeBox = false,
-            BackColor = Color.FromArgb(246, 246, 244),
-            ForeColor = Color.FromArgb(35, 37, 42),
+            BackColor = Theme.Canvas,
+            ForeColor = Theme.Ink,
             Font = bodyFont
         })
         {
@@ -40,35 +48,35 @@ static class Setup
             var mark = new PictureBox
             {
                 Image = logo, SizeMode = PictureBoxSizeMode.CenterImage,
-                BackColor = Color.FromArgb(228, 234, 246), Bounds = new Rectangle(25, 24, 48, 48)
+                BackColor = Theme.Mark, Bounds = new Rectangle(25, 24, 48, 48)
             };
-            var title = new Label { Text = "Auxe", Font = titleFont, Bounds = new Rectangle(82, 23, 280, 48) };
+            var title = new Label { Text = uninstall ? "Uninstall Auxe" : "Auxe", Font = titleFont, Bounds = new Rectangle(83, 16, 320, 43) };
+            var publisher = new Label
+            {
+                Text = "Web X Agency", ForeColor = Theme.Muted,
+                Bounds = new Rectangle(85, 56, 270, 23)
+            };
             var description = new Label
             {
-                Text = "Choose where each Windows app plays. Auxe installs for your account and opens in the notification area.",
+                Text = uninstall
+                    ? "Remove Auxe from this account, including its Start menu shortcut and startup setting."
+                    : "Choose where each Windows app plays. Install Auxe for this account and open it near the clock.",
                 Bounds = new Rectangle(26, 91, 378, 64)
             };
-            var install = new Button
+            var install = new SetupButton(true)
             {
-                Text = "Install Auxe", Bounds = new Rectangle(254, 184, 150, 40),
-                BackColor = Color.FromArgb(35, 95, 184), ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+                Text = uninstall ? "Uninstall Auxe" : "Install Auxe", Font = actionFont,
+                Bounds = new Rectangle(243, 184, 161, 42)
             };
-            install.FlatAppearance.BorderSize = 0;
-            var cancel = new Button
+            var cancel = new SetupButton(false)
             {
-                Text = "Cancel", Bounds = new Rectangle(151, 184, 91, 40),
-                BackColor = Color.White, FlatStyle = FlatStyle.Flat
+                Text = "Cancel", Font = actionFont, Bounds = new Rectangle(140, 184, 91, 42)
             };
-            cancel.FlatAppearance.BorderColor = Color.FromArgb(225, 227, 232);
-            foreach (var control in new Control[] { mark, install, cancel })
-            {
-                using (var shape = SpeakerArt.Rounded(control.ClientRectangle, 18))
-                    control.Region = new Region(shape);
-            }
+            using (var shape = SpeakerArt.Rounded(mark.ClientRectangle, 24)) mark.Region = new Region(shape);
             cancel.Click += (sender, args) => window.Close();
             install.Click += (sender, args) =>
             {
+                if (uninstall) { confirmed = true; window.Close(); return; }
                 if (install.Text == "Done") { window.Close(); return; }
                 install.Enabled = false;
                 cancel.Enabled = false;
@@ -87,10 +95,32 @@ static class Setup
                 }
                 finally { install.Enabled = true; }
             };
-            window.Controls.AddRange(new Control[] { mark, title, description, cancel, install });
+            window.Controls.AddRange(new Control[] { mark, title, publisher, description, cancel, install });
             window.AcceptButton = install;
             window.CancelButton = cancel;
             Application.Run(window);
+        }
+        return uninstall && !confirmed ? 1 : 0;
+    }
+
+    static int Update(int priorProcess)
+    {
+        try
+        {
+            try
+            {
+                using (var running = Process.GetProcessById(priorProcess))
+                    if (!running.WaitForExit(10000)) return 1;
+            }
+            catch (ArgumentException) { } // Auxe already exited.
+            Install();
+            return 0;
+        }
+        catch (Exception)
+        {
+            try { if (File.Exists(Startup.Executable)) Process.Start(Startup.Executable); }
+            catch (System.ComponentModel.Win32Exception) { }
+            return 1;
         }
     }
 
@@ -103,6 +133,7 @@ static class Setup
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(Path.GetDirectoryName(startMenu));
         Extract("app", exe);
+        File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(root, "AuxeMaintenance.exe"), true);
         Extract("uninstall", Path.Combine(root, "uninstall.ps1"));
         using (var zip = new ZipArchive(Assembly.GetExecutingAssembly().GetManifestResourceStream("chrome"), ZipArchiveMode.Read))
         {
@@ -129,20 +160,29 @@ static class Setup
         using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             key.SetValue("DisplayName", "Auxe");
-            key.SetValue("DisplayVersion", "0.1.2");
+            key.SetValue("DisplayVersion", "0.1.3");
+            key.SetValue("Publisher", "Web X Agency");
             key.SetValue("DisplayIcon", exe);
             key.SetValue("InstallLocation", root);
             key.SetValue("UninstallString", "\"powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(root, "uninstall.ps1") + "\"");
             key.SetValue("NoModify", 1);
             key.SetValue("NoRepair", 1);
         }
+        Startup.ApplyInstallDefault();
         Process.Start(exe);
     }
 
     static void Extract(string name, string path)
     {
-        using (var input = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
-        using (var output = File.Create(path)) input.CopyTo(output);
+        var stage = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var input = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
+            using (var output = new FileStream(stage, FileMode.CreateNew)) input.CopyTo(output);
+            if (File.Exists(path)) File.Replace(stage, path, null);
+            else File.Move(stage, path);
+        }
+        finally { if (File.Exists(stage)) File.Delete(stage); }
     }
 }
 
@@ -155,5 +195,46 @@ sealed class SetupWindow : Form
         long coordinates = message.LParam.ToInt64();
         var point = PointToClient(new Point(unchecked((short)coordinates), unchecked((short)(coordinates >> 16))));
         if (point.Y >= 0 && point.Y < 78) message.Result = new IntPtr(2);
+    }
+}
+
+sealed class SetupButton : Button
+{
+    readonly bool primary;
+    bool hover;
+
+    public SetupButton(bool primary)
+    {
+        this.primary = primary;
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        Cursor = Cursors.Hand;
+        UseMnemonic = false;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+    }
+
+    protected override void OnMouseEnter(EventArgs args) { base.OnMouseEnter(args); hover = true; Invalidate(); }
+    protected override void OnMouseLeave(EventArgs args) { base.OnMouseLeave(args); hover = false; Invalidate(); }
+
+    protected override void OnPaint(PaintEventArgs args)
+    {
+        var graphics = args.Graphics;
+        graphics.Clear(Parent.BackColor);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
+        var blue = Color.FromArgb(35, 95, 184);
+        var fill = primary
+            ? (hover ? Color.FromArgb(29, 79, 156) : blue)
+            : (hover ? Theme.Highlight : Theme.Card);
+        using (var path = SpeakerArt.Rounded(bounds, 22))
+        using (var brush = new SolidBrush(Enabled ? fill : Theme.Surface))
+        using (var border = new Pen(Focused ? Theme.Accent : Theme.Border))
+        using (var text = new SolidBrush(primary && Enabled ? Color.White : Theme.Ink))
+        using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+        {
+            graphics.FillPath(brush, path);
+            if (!primary || Focused) graphics.DrawPath(border, path);
+            graphics.DrawString(Text, Font, text, bounds, format);
+        }
     }
 }

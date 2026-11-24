@@ -1,4 +1,11 @@
 const routes = new Map();
+let changes = Promise.resolve();
+
+function serialize(action) {
+  const result = changes.then(action);
+  changes = result.catch(() => {});
+  return result;
+}
 
 async function listOutputs() {
   const devices = await navigator.mediaDevices.enumerateDevices();
@@ -46,6 +53,7 @@ async function select(id, output) {
     if (output && !device) throw new Error("That output is unavailable.");
     if (typeof route.context.setSinkId !== "function") throw new Error("Chrome output switching is unavailable.");
     await route.context.setSinkId(output || "");
+    if (route.context.state === "suspended") await route.context.resume();
     route.selected = output || null;
     route.status = device ? device.Name : "Chrome default";
   } catch (error) {
@@ -54,7 +62,7 @@ async function select(id, output) {
   }
 }
 
-navigator.mediaDevices.addEventListener("devicechange", async () => {
+navigator.mediaDevices.addEventListener("devicechange", () => serialize(async () => {
   const devices = await listOutputs();
   for (const [id, route] of routes) {
     if (route.selected && !devices.some(device => device.Id === route.selected)) {
@@ -68,11 +76,11 @@ navigator.mediaDevices.addEventListener("devicechange", async () => {
     }
   }
   void chrome.runtime.sendMessage({ kind: "playbackChanged" });
-});
+}).catch(() => {}));
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message.target !== "playback") return;
-  (async () => {
+  serialize(async () => {
     switch (message.kind) {
       case "start": await start(message.id, message.streamId); break;
       case "stop": stop(message.id); break;
@@ -83,6 +91,6 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       }
     }
     return true;
-  })().then(value => reply({ value }), error => reply({ error: error.message }));
+  }).then(value => reply({ value }), error => reply({ error: error.message }));
   return true;
 });

@@ -18,6 +18,7 @@ sealed class AudioApp
     public readonly HashSet<uint> Processes = new HashSet<uint>();
     public readonly HashSet<string> Outputs = new HashSet<string>();
     public bool Active;
+    public readonly HashSet<string> ActiveOutputs = new HashSet<string>();
 }
 
 sealed class Audio : IDisposable
@@ -28,10 +29,11 @@ sealed class Audio : IDisposable
     IPolicy policy;
     readonly List<IMeter> meters = new List<IMeter>();
     long nextMeterRefresh;
+    readonly Dictionary<string, SessionWatch> watchers = new Dictionary<string, SessionWatch>();
 
     static void Release(object value) { if (value != null) Marshal.ReleaseComObject(value); }
 
-    public List<Output> Read(out List<AudioApp> apps)
+    public List<Output> Read(out List<AudioApp> apps, bool watch = false)
     {
         var outputs = new List<Output>();
         var groups = new Dictionary<string, AudioApp>(StringComparer.OrdinalIgnoreCase);
@@ -50,13 +52,25 @@ sealed class Audio : IDisposable
                     string id;
                     device.GetId(out id);
                     outputs.Add(new Output { Id = id, Name = FriendlyName(device, id) });
+                    SessionWatch watcher;
+                    if (watch && !watchers.ContainsKey(id))
+                    {
+                        try { watchers.Add(id, new SessionWatch(device)); }
+                        catch (COMException) { } // Enumeration still works when notifications are unavailable.
+                    }
                     ReadSessions(device, id, groups);
+                    if (watchers.TryGetValue(id, out watcher)) watcher.Read(id, groups);
                 }
                 catch (COMException) { } // Endpoint removed during enumeration.
                 finally { Release(device); }
             }
         }
         finally { Release(list); }
+        foreach (var id in watchers.Keys.Where(id => !outputs.Any(output => output.Id == id)).ToArray())
+        {
+            watchers[id].Dispose();
+            watchers.Remove(id);
+        }
         apps = groups.Values.OrderByDescending(app => app.Active).ThenBy(app => app.Name).ToList();
         return outputs.OrderBy(output => output.Name).ToList();
     }
@@ -89,50 +103,119 @@ sealed class Audio : IDisposable
             sessions.GetCount(out count);
             for (int index = 0; index < count; index++)
             {
-                ISession session = null;
+                ISessionBase control = null;
                 try
                 {
-                    ISessionBase control;
                     sessions.GetSession(index, out control);
-                    try { session = (ISession)control; }
-                    catch { Release(control); throw; }
-                    int state;
-                    uint pid;
-                    session.GetState(out state);
-                    session.GetProcessId(out pid);
-                    if (state == 2 || pid == 0 || pid > int.MaxValue) continue;
-                    using (var process = Process.GetProcessById((int)pid))
-                    {
-                        string name = process.ProcessName;
-                        string key = name;
-                        try
-                        {
-                            key = process.MainModule.FileName;
-                            var description = process.MainModule.FileVersionInfo.FileDescription;
-                            if (!string.IsNullOrWhiteSpace(description)) name = description;
-                        }
-                        catch (System.ComponentModel.Win32Exception) { }
-                        if (process.ProcessName.Equals("chrome", StringComparison.OrdinalIgnoreCase)) name = "Chrome";
-                        if (process.ProcessName.Equals("discord", StringComparison.OrdinalIgnoreCase)) name = "Discord";
-                        if (process.ProcessName.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase)) name = "WhatsApp";
-                        AudioApp app;
-                        if (!groups.TryGetValue(key, out app))
-                        {
-                            app = new AudioApp { Key = key, Name = name };
-                            groups.Add(key, app);
-                        }
-                        app.Processes.Add(pid);
-                        app.Outputs.Add(output);
-                        app.Active |= state == 1;
-                    }
+                    ReadSession(control, output, groups);
                 }
-                catch (ArgumentException) { } // Process exited.
-                catch (InvalidOperationException) { }
                 catch (COMException) { }
-                finally { Release(session); }
+                finally { Release(control); }
             }
         }
         finally { Release(sessions); Release(manager); }
+    }
+
+    static bool ReadSession(ISessionBase control, string output, Dictionary<string, AudioApp> groups)
+    {
+        try
+        {
+            var session = (ISession)control;
+            int state;
+            uint pid;
+            session.GetState(out state);
+            session.GetProcessId(out pid);
+            if (state == 2 || pid == 0 || pid > int.MaxValue) return false;
+            using (var process = Process.GetProcessById((int)pid))
+            {
+                string name = process.ProcessName;
+                string key = name;
+                try
+                {
+                    var module = process.MainModule;
+                    key = module.FileName;
+                    var description = module.FileVersionInfo.FileDescription;
+                    if (!string.IsNullOrWhiteSpace(description)) name = description;
+                }
+                catch (System.ComponentModel.Win32Exception) { }
+                if (process.ProcessName.Equals("chrome", StringComparison.OrdinalIgnoreCase)) name = "Chrome";
+                if (process.ProcessName.Equals("discord", StringComparison.OrdinalIgnoreCase)) name = "Discord";
+                if (process.ProcessName.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase)) name = "WhatsApp";
+                AudioApp app;
+                if (!groups.TryGetValue(key, out app))
+                {
+                    app = new AudioApp { Key = key, Name = name };
+                    groups.Add(key, app);
+                }
+                app.Processes.Add(pid);
+                app.Outputs.Add(output);
+                app.Active |= state == 1;
+                if (state == 1) app.ActiveOutputs.Add(output);
+            }
+            return true;
+        }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (COMException) { return false; }
+    }
+
+    sealed class SessionWatch : ISessionNotification, IDisposable
+    {
+        readonly ISessionManager manager;
+        readonly List<ISessionBase> added = new List<ISessionBase>();
+        bool disposed;
+
+        public SessionWatch(IDevice device)
+        {
+            Guid iid = typeof(ISessionManager).GUID;
+            object result;
+            device.Activate(ref iid, 1, IntPtr.Zero, out result);
+            manager = (ISessionManager)result;
+            ISessions initial = null;
+            try
+            {
+                manager.RegisterSessionNotification(this);
+                manager.GetSessionEnumerator(out initial);
+                int count;
+                initial.GetCount(out count);
+            }
+            catch (COMException)
+            {
+                Dispose();
+                throw;
+            }
+            finally { Release(initial); }
+        }
+
+        public int OnSessionCreated(ISessionBase session)
+        {
+            lock (added)
+                if (!disposed) added.Add(session);
+            return 0;
+        }
+
+        public void Read(string output, Dictionary<string, AudioApp> groups)
+        {
+            ISessionBase[] snapshot;
+            lock (added) snapshot = added.ToArray();
+            foreach (var session in snapshot)
+            {
+                if (ReadSession(session, output, groups)) continue;
+                lock (added) added.Remove(session);
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (added)
+            {
+                disposed = true;
+                added.Clear();
+            }
+            try { manager.UnregisterSessionNotification(this); }
+            catch (COMException) { }
+            finally { Release(manager); }
+        }
     }
 
     public bool Playing()
@@ -307,6 +390,13 @@ sealed class Audio : IDisposable
         void GetAudioSessionControl();
         void GetSimpleAudioVolume();
         void GetSessionEnumerator(out ISessions sessions);
+        void RegisterSessionNotification(ISessionNotification notification);
+        void UnregisterSessionNotification(ISessionNotification notification);
+    }
+    [Guid("641DD20B-4D41-49CC-ABA3-174B9477BB08"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface ISessionNotification
+    {
+        [PreserveSig] int OnSessionCreated(ISessionBase session);
     }
     [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface ISessions { void GetCount(out int count); void GetSession(int index, out ISessionBase session); }
