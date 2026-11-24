@@ -9,6 +9,7 @@
   <link rel="icon" href="assets/auxe.png" type="image/png">
   <link rel="stylesheet" href="style.css">
   <script src="motion.js" defer></script>
+  <script src="demo.js" defer></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -41,21 +42,21 @@
     <section class="preview shell" id="preview" aria-labelledby="preview-title">
       <div class="section-heading" data-reveal>
         <h2 id="preview-title">Per-app audio.<br>One tray icon.</h2>
-        <p>Switch outputs while you work, play, or take a call. Adjust each device's volume or give a Chrome tab its own speakers.</p>
+        <p>Try switching outputs, routing Chrome tabs, and adjusting volumes with sample devices. The demo leaves your computer's audio settings alone.</p>
       </div>
       <div class="gallery">
         <figure data-reveal>
-          <div class="frame dark-frame"><img src="assets/app-outputs.png" alt="Auxe dark tray showing independent outputs for Chrome, Discord, WhatsApp and YouTube Music" width="466" height="364" loading="lazy"></div>
-          <figcaption>Per-app outputs <span>Dark appearance</span></figcaption>
+          <div class="frame dark-frame" data-demo="apps"><img src="assets/app-outputs.png" alt="Auxe dark tray showing independent outputs for Chrome, Discord, WhatsApp and YouTube Music" width="466" height="364" loading="lazy"></div>
+          <figcaption>Per-app outputs</figcaption>
         </figure>
         <figure data-reveal>
-          <div class="frame light-frame"><img src="assets/chrome-tabs.png" alt="Auxe with the Chrome row expanded and two browser tabs routed independently" width="466" height="496" loading="lazy"></div>
-          <figcaption>Chrome tab routing <span>Optional companion</span></figcaption>
+          <div class="frame light-frame" data-demo="tabs"><img src="assets/chrome-tabs.png" alt="Auxe with the Chrome row expanded and two browser tabs routed independently" width="466" height="496" loading="lazy"></div>
+          <figcaption>Chrome tab routing</figcaption>
         </figure>
       </div>
       <details class="volume-preview">
-        <summary>See device volume controls</summary>
-        <img src="assets/device-volume.png" width="466" height="298" loading="lazy" alt="Auxe device volume sliders for a headset, monitor and speakers">
+        <summary>Try device volume controls</summary>
+        <div data-demo="volume"><img src="assets/device-volume.png" width="466" height="298" loading="lazy" alt="Auxe device volume sliders for a headset, monitor and speakers"></div>
       </details>
     </section>
 
@@ -69,7 +70,16 @@
         </ol>
         <p class="update-link"><a href="https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe">Download latest update</a></p>
       </div>
-      <figure class="setup-image" data-reveal><img src="assets/setup.png" width="430" height="252" loading="lazy" alt="Auxe Setup with a large Install Auxe button"></figure>
+      <div class="setup-image" data-reveal>
+        <div class="setup-card">
+          <div class="setup-brand">
+            <img src="assets/auxe.png" width="40" height="40" alt="">
+            <div><strong>Auxe Setup</strong><span>Developed by Skipper</span></div>
+          </div>
+          <p>Choose where each app plays. Auxe installs for your Windows account and opens beside the clock.</p>
+          <a class="button setup-install" href="https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe" aria-label="Install Auxe by downloading AuxeSetup.exe">Install Auxe</a>
+        </div>
+      </div>
     </section>
 
     <section class="answers shell" aria-label="Common questions">
