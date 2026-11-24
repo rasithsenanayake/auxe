@@ -4,7 +4,7 @@
 
 **[Download AuxeSetup.exe](https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe)**
 
-[Download from Releases](https://github.com/rasithsenanayake/auxe/releases/latest) · [Installer in this repo](AuxeSetup.exe)
+[Product website](https://rasithsenanayake.github.io/auxe/) · [Download from Releases](https://github.com/rasithsenanayake/auxe/releases/latest) · [Installer in this repo](AuxeSetup.exe)
 
 ## A closer look
 
@@ -25,7 +25,7 @@ Screenshots show Auxe with sample apps and devices.
 
 1. Double-click **AuxeSetup.exe** on Windows 11 x64, then choose **Install Auxe**. The installer is also at the top level of this repo for people who clone it or download the ZIP.
 2. Start playback in an app. Click the dancing speaker next to the clock or under the tray’s **^** arrow, then select an output.
-3. Use the sun or moon button beside **Settings** to switch appearance. The tick beside **Start with Windows** shows that it is on. Settings also holds update controls and Chrome companion setup.
+3. Use the sun or moon button beside the **Settings** gear to switch appearance. The tick beside **Start with Windows** shows that it is on. Settings also holds update controls and Chrome companion setup.
 
 If you already have an older build running, exit it from the tray before running Setup. The installer is unsigned.
 

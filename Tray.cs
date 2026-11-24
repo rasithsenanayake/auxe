@@ -43,8 +43,8 @@ sealed class Tray : ApplicationContext
     readonly Form panel = new Form();
     readonly Label heading = new CrispLabel();
     readonly PictureBox mark = new PictureBox();
-    Button settings;
-    readonly AppearanceButton appearance = new AppearanceButton();
+    readonly HeaderButton settings = new HeaderButton(true);
+    readonly HeaderButton appearance = new HeaderButton(false);
     readonly ToolTip hints = new ToolTip();
     readonly Timer panelFade = new Timer { Interval = 15 };
     readonly Stopwatch panelClock = new Stopwatch();
@@ -62,6 +62,7 @@ sealed class Tray : ApplicationContext
     bool checkingUpdate;
     string readyUpdate;
     readonly Font rowFont = Typography.Heading(10);
+    readonly Font detailFont = Typography.Text(9.25f);
     readonly Label status = new CrispLabel();
     readonly FlowLayoutPanel rows = new FlowLayoutPanel();
     readonly Dictionary<string, Tuple<string, long>> requested = new Dictionary<string, Tuple<string, long>>();
@@ -130,16 +131,12 @@ sealed class Tray : ApplicationContext
         rows.AutoScroll = true;
         status.ForeColor = Color.FromArgb(92, 98, 110);
         status.AutoEllipsis = true;
-        settings = new Button
-        {
-            Text = "Settings", AccessibleName = "Auxe settings", Font = bodyFont,
-            Bounds = new Rectangle(370, 19, 76, 30), FlatStyle = FlatStyle.Flat,
-            BackColor = Color.White, Cursor = Cursors.Hand
-        };
-        settings.FlatAppearance.BorderSize = 0;
+        settings.AccessibleName = "Settings";
+        settings.Bounds = new Rectangle(414, 19, 32, 30);
+        hints.SetToolTip(settings, "Settings");
         settingsMenu.Font = bodyFont;
         settingsMenu.Items.Add(startupItem);
-        appearance.Bounds = new Rectangle(330, 19, 32, 30);
+        appearance.Bounds = new Rectangle(374, 19, 32, 30);
         settingsMenu.Items.Add(updatesItem);
         settingsMenu.Items.Add(downloadItem);
         settingsMenu.Items.Add(companionItem);
@@ -329,6 +326,7 @@ sealed class Tray : ApplicationContext
         mark.BackColor = Theme.Mark;
         status.ForeColor = Theme.Muted;
         settings.BackColor = Theme.Card;
+        settings.Invalidate();
         startupItem.ForeColor = updatesItem.ForeColor = downloadItem.ForeColor = companionItem.ForeColor = Theme.Ink;
         appearance.AccessibleName = Theme.Dark ? "Switch to Light appearance" : "Switch to Dark appearance";
         hints.SetToolTip(appearance, appearance.AccessibleName);
@@ -517,8 +515,6 @@ sealed class Tray : ApplicationContext
                 string preference;
                 if (!preferences.TryGetValue(app.Key, out preference)) preference = id;
                 bool chromeOverrides = isChrome && chrome.Any(source => source.Enabled);
-                if (isChrome && chrome.Count == 0 && !requested.ContainsKey(app.Key))
-                    subtitle = "Tab controls need the companion";
                 AddRow(app.Name, subtitle, outputs, preference, selected => ChangeWindowsOutput(app.Key, selected.Id, chromeOverrides),
                     isChrome && chrome.Any(source => !source.Standalone), AppIcon(app.Key));
                 if (isChrome && expanded) AddChromeRows(chrome.Where(source => !source.Standalone), true);
@@ -581,7 +577,7 @@ sealed class Tray : ApplicationContext
     {
         foreach (var source in sources)
         {
-            AddRow((child ? "   " : "") + source.Name,
+            AddRow(source.Name,
                 source.Status ?? (source.Enabled ? "Chrome audio" : "Enable in Chrome with Ctrl+Shift+U"),
                 source.Enabled ? source.Outputs : null, source.Selected,
                                 async selected =>
@@ -654,12 +650,13 @@ sealed class Tray : ApplicationContext
         bool expander, Bitmap appIcon = null, bool music = false)
     {
         var row = new Panel { Width = 409, Height = 60, Margin = new Padding(0, 0, 0, 6), BackColor = Theme.Card };
-        bool decorated = appIcon != null || music;
-        int textLeft = decorated ? 44 : 15;
+        const int textLeft = 46;
         int textWidth = (outputs == null ? 373 : 199) - textLeft;
-        var title = new CrispLabel { Text = name, UseMnemonic = false, AutoEllipsis = true, Font = rowFont, Bounds = new Rectangle(textLeft, 9, textWidth, 22) };
-        var detail = new CrispLabel { Text = subtitle, UseMnemonic = false, AutoEllipsis = true, ForeColor = Theme.Muted, Bounds = new Rectangle(textLeft, 30, textWidth, 22) };
-        if (decorated) row.Controls.Add(new AppBadge(appIcon) { Bounds = new Rectangle(12, 18, 24, 24) });
+        var title = new CrispLabel { Text = name, UseMnemonic = false, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
+            Font = rowFont, Bounds = new Rectangle(textLeft, 9, textWidth, 22) };
+        var detail = new CrispLabel { Text = subtitle, UseMnemonic = false, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft,
+            Font = detailFont, ForeColor = Theme.Muted, Bounds = new Rectangle(textLeft, 30, textWidth, 20) };
+        if (outputs != null || appIcon != null || music) row.Controls.Add(new AppBadge(appIcon, music) { Bounds = new Rectangle(13, 18, 24, 24) });
         hints.SetToolTip(title, name.Trim());
         hints.SetToolTip(detail, subtitle);
         row.Controls.AddRange(new Control[] { title, detail });
@@ -703,7 +700,8 @@ sealed class Tray : ApplicationContext
             tray.ContextMenuStrip.Dispose(); tray.Dispose(); mark.Image.Dispose(); panel.Dispose();
             disposed = true;
             lock (audioLock) { if (routingAudio != null) routingAudio.Dispose(); }
-            hints.Dispose(); settingsMenu.Dispose(); bridge.Dispose(); audio.Dispose(); rowFont.Dispose(); bodyFont.Dispose(); headingFont.Dispose();
+            hints.Dispose(); settingsMenu.Dispose(); bridge.Dispose(); audio.Dispose();
+            rowFont.Dispose(); detailFont.Dispose(); bodyFont.Dispose(); headingFont.Dispose();
             foreach (var image in appIcons.Values) if (image != null) image.Dispose();
             foreach (var icon in frames) icon.Dispose();
         }
@@ -955,12 +953,14 @@ sealed class FadingMenu : ContextMenuStrip
     }
 }
 
-sealed class AppearanceButton : Button
+sealed class HeaderButton : Button
 {
+    readonly bool gear;
     bool hover;
 
-    public AppearanceButton()
+    public HeaderButton(bool gear)
     {
+        this.gear = gear;
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
         Cursor = Cursors.Hand;
@@ -986,7 +986,19 @@ sealed class AppearanceButton : Button
             if (Focused) graphics.DrawPath(focus, shape);
             graphics.TranslateTransform(Width / 2f, Height / 2f);
             graphics.ScaleTransform(Height / 30f, Height / 30f);
-            if (Theme.Dark)
+            if (gear)
+            {
+                var teeth = new PointF[32];
+                for (int index = 0; index < teeth.Length; index++)
+                {
+                    double angle = Math.PI * index / 16;
+                    double radius = index % 4 == 1 || index % 4 == 2 ? 8 : 6.1;
+                    teeth[index] = new PointF((float)(Math.Cos(angle) * radius), (float)(Math.Sin(angle) * radius));
+                }
+                graphics.DrawPolygon(pen, teeth);
+                graphics.DrawEllipse(pen, -2.4f, -2.4f, 4.8f, 4.8f);
+            }
+            else if (Theme.Dark)
             {
                 graphics.DrawEllipse(pen, -3.5f, -3.5f, 7, 7);
                 for (int ray = 0; ray < 8; ray++)
@@ -1013,10 +1025,12 @@ sealed class AppearanceButton : Button
 sealed class AppBadge : Control
 {
     readonly Bitmap icon;
+    readonly bool music;
 
-    public AppBadge(Bitmap icon)
+    public AppBadge(Bitmap icon, bool music)
     {
         this.icon = icon;
+        this.music = music;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         TabStop = false;
     }
@@ -1034,6 +1048,17 @@ sealed class AppBadge : Control
         }
 
         float unit = Width / 24f;
+        if (!music)
+        {
+            graphics.ScaleTransform(unit, unit);
+            using (var pen = new Pen(Theme.Muted, 1.2f))
+            using (var outline = SpeakerArt.Rounded(new Rectangle(4, 5, 16, 14), 4))
+            {
+                graphics.DrawPath(pen, outline);
+                graphics.DrawLine(pen, 4, 9, 20, 9);
+            }
+            return;
+        }
         using (var red = new SolidBrush(Color.FromArgb(218, 49, 76)))
         using (var white = new Pen(Color.White, 1.6f * unit))
         {
