@@ -1,4 +1,4 @@
-:root { --tray-preview-ready: 2; }
+:root { --tray-preview-ready: 3; }
 
 @font-face {
   font-family: "Geist Preview";
@@ -12,6 +12,7 @@
 
 .demo-panel {
   --tray: #0f0f0f;
+  --tray-icons: url("assets/app-outputs.png");
   --row: #191919;
   --control: #202020;
   --edge: #404040;
@@ -29,6 +30,7 @@
 }
 .demo-panel.demo-light {
   --tray: #f6f6f4;
+  --tray-icons: url("assets/light-mode.png");
   --row: #fff;
   --control: #f0f1f4;
   --edge: #cccdd1;
@@ -42,7 +44,7 @@
 .demo-logo, .demo-app-icon, .demo-header-button {
   display: block;
   flex: 0 0 auto;
-  background-image: url("assets/app-outputs.png");
+  background-image: var(--tray-icons);
   background-repeat: no-repeat;
 }
 .demo-logo { width: 36px; height: 36px; border-radius: 8px; background-position: -20px -16px; }
@@ -60,19 +62,8 @@
 .demo-theme { background-position: -374px -19px; }
 .demo-gear { background-position: -414px -19px; list-style: none; }
 .demo-gear::-webkit-details-marker { display: none; }
-.demo-light .demo-header-button { filter: invert(.85); }
-.demo-light .demo-theme::after {
-  content: "";
-  display: block;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  box-shadow: -3px 2px 0 1px #fff;
-  margin: -1px 0 0 3px;
-}
-.demo-light .demo-theme { background-color: #191919; background-image: none; }
 .demo-toolbar button:hover, .demo-gear:hover { filter: brightness(1.24); }
-.demo-light .demo-toolbar button:hover, .demo-light .demo-gear:hover { filter: invert(.85) brightness(.93); }
+.demo-light .demo-toolbar button:hover, .demo-light .demo-gear:hover { filter: brightness(.94); }
 .demo-speaker[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--muted-text); }
 .demo-settings { position: relative; padding: 0; border: 0; }
 .demo-menu {

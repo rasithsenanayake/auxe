@@ -1,6 +1,6 @@
 (() => {
   const styles = getComputedStyle(document.documentElement);
-  if (styles.getPropertyValue("--tray-preview-ready").trim() !== "2") return;
+  if (styles.getPropertyValue("--tray-preview-ready").trim() !== "3") return;
 
   const names = ["System default", "Headset", "Monitor speakers", "Microlab speakers"];
   const apps = [
