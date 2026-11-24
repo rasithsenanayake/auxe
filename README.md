@@ -14,7 +14,9 @@ Screenshots use sample apps and devices.
 
 ## Install
 
-Download and run **AuxeSetup.exe** on Windows 11 x64. The unsigned installer adds Auxe to the Start menu and launches it in the notification area.
+Download and run **AuxeSetup.exe** on Windows 11 x64. Click **Install Auxe** to add it to your Start menu and open the tray app. The installer is unsigned.
+
+![Auxe Setup window with an Install Auxe button](screenshots/setup.png)
 
 To build from source, run `.\build.ps1` in PowerShell. It creates `bin\AuxeSetup.exe`.
 
