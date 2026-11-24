@@ -160,7 +160,7 @@ static class Setup
         using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             key.SetValue("DisplayName", "Auxe");
-            key.SetValue("DisplayVersion", "0.1.3");
+            key.SetValue("DisplayVersion", "0.1.4");
             key.SetValue("Publisher", "Web X Agency");
             key.SetValue("DisplayIcon", exe);
             key.SetValue("InstallLocation", root);

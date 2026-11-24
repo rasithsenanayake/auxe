@@ -3,6 +3,7 @@ const errors = new Map();
 let nativePort;
 let queue = Promise.resolve();
 let snapshotTimer;
+const musicMenu = "auxe-youtube-music";
 
 function enqueue(callback) {
   queue = queue.then(callback).catch(error => console.warn("Auxe:", error.message));
@@ -50,16 +51,39 @@ function connect() {
 }
 
 async function publish() {
-  const tabs = await chrome.tabs.query({});
+  const [queried, windows] = await Promise.all([
+    chrome.tabs.query({}),
+    chrome.windows.getAll({ populate: true, windowTypes: ["normal", "popup", "app"] })
+  ]);
+  const tabs = new Map(queried.map(tab => [tab.id, tab]));
+  const appTabs = new Set();
+  for (const window of windows) {
+    for (const tab of window.tabs || []) {
+      if (Number.isInteger(tab.id)) {
+        tabs.set(tab.id, tab);
+        if (window.type === "app") appTabs.add(tab.id);
+      }
+    }
+  }
   const captured = await hasPlayback() ? await playback("state") : [];
   const active = new Map(captured.map(source => [source.Id, source]));
-  const sources = await Promise.all(tabs.filter(tab => tab.audible || active.has(tab.id))
+  const sources = await Promise.all([...tabs.values()].filter(tab => Number.isInteger(tab.id) &&
+    (tab.audible || active.has(tab.id) || tab.url?.startsWith("https://music.youtube.com/")))
     .slice(0, 128).map(async tab => {
       let standalone = false;
       if (tab.url?.startsWith("https://music.youtube.com/")) {
-        try { standalone = Boolean(await chrome.tabs.sendMessage(tab.id, { kind: "musicWindow" })); }
-        catch { /* A page may still be loading. */ }
+        standalone = appTabs.has(tab.id);
+        if (!standalone) {
+          try {
+            const [check] = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => matchMedia("(display-mode: standalone), (display-mode: minimal-ui), (display-mode: window-controls-overlay)").matches
+            });
+            standalone = Boolean(check?.result);
+          } catch { /* A page may still be loading. */ }
+        }
       }
+      if (!standalone && !tab.audible && !active.has(tab.id)) return null;
       return {
         Id: tab.id,
         Name: standalone ? "YouTube Music" : (tab.title || "Chrome tab").slice(0, 180),
@@ -69,12 +93,13 @@ async function publish() {
         ...active.get(tab.id)
       };
     }));
-  if (sources.length) connect().postMessage(sources);
+  const visible = sources.filter(Boolean);
+  if (visible.length) connect().postMessage(visible);
   else if (nativePort) { nativePort.disconnect(); nativePort = undefined; }
   if (!captured.length && await hasPlayback()) await chrome.offscreen.closeDocument();
 }
 
-chrome.action.onClicked.addListener(tab => {
+function toggleCapture(tab) {
   if (!Number.isInteger(tab?.id)) return;
   // Request the capture token while Chrome still has the extension invocation.
   const token = chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })
@@ -107,6 +132,11 @@ chrome.action.onClicked.addListener(tab => {
       await publish();
     }
   });
+}
+
+chrome.action.onClicked.addListener(toggleCapture);
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === musicMenu) toggleCapture(tab);
 });
 
 chrome.tabs.onUpdated.addListener((id, change) => {
@@ -119,7 +149,13 @@ chrome.tabs.onRemoved.addListener(id => enqueue(async () => {
 }));
 chrome.windows.onFocusChanged.addListener(publishSoon);
 chrome.runtime.onStartup.addListener(publishSoon);
-chrome.runtime.onInstalled.addListener(publishSoon);
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => chrome.contextMenus.create({
+    id: musicMenu, title: "Toggle Auxe output for YouTube Music", contexts: ["page", "audio", "video"],
+    documentUrlPatterns: ["https://music.youtube.com/*"]
+  }));
+  publishSoon();
+});
 chrome.runtime.onMessage.addListener(message => {
   if (message.kind === "playbackChanged" || message.kind === "devicesChanged") publishSoon();
 });

@@ -25,7 +25,7 @@ Screenshots show Auxe with sample apps and devices.
 
 1. Double-click **AuxeSetup.exe** on Windows 11 x64, then choose **Install Auxe**. The installer is also at the top level of this repo for people who clone it or download the ZIP.
 2. Start playback in an app. Click the dancing speaker next to the clock or under the tray’s **^** arrow, then select an output.
-3. Open **Settings** in Auxe to switch appearance, change **Start with Windows**, or manage updates.
+3. Use the sun or moon button beside **Settings** to switch appearance. The tick beside **Start with Windows** shows that it is on. Settings also holds update controls and Chrome companion setup.
 
 If you already have an older build running, exit it from the tray before running Setup. The installer is unsigned.
 
@@ -35,10 +35,12 @@ If you already have an older build running, exit it from the tray before running
 
 To remove Auxe, go to **Windows Settings → Apps → Installed apps → Auxe → Uninstall**. If you enabled the optional Chrome companion, remove it from Chrome separately.
 
+![Auxe Settings menu with Start with Windows checked](screenshots/settings.png)
+
 ## Audio routing
 
 - **Windows apps.** Choose **System default** to clear a route. Auxe shows when a saved route is waiting for playback to move. Some apps need you to restart playback, rejoin the call, or select their default output in the app’s own settings.
-- **Chrome tabs and YouTube Music.** In `chrome://extensions`, enable **Developer mode** and load `%LOCALAPPDATA%\Programs\Auxe\chrome` as an unpacked extension. Play audio and press **Ctrl+Shift+U** in each source you want to route. Expand the Chrome row in Auxe for individual tabs. The installed YouTube Music window appears separately when Chrome identifies it as standalone.
+- **Chrome tabs and YouTube Music.** In `chrome://extensions`, enable **Developer mode** and load `%LOCALAPPDATA%\Programs\Auxe\chrome` as an unpacked extension. If the companion was already installed, click **Reload** on its card after updating Auxe. Open YouTube Music in the same Chrome profile as the companion. Its installed app window appears separately once the companion detects it. Press **Ctrl+Shift+U** in a source, or right-click inside YouTube Music and choose **Toggle Auxe output for YouTube Music**, then choose an output in Auxe. Expand the Chrome row for individual browser tabs.
 
 If Chrome only shows the default output, open the companion’s options and choose **Allow device access**. Chrome may ask for microphone permission to expose playback devices. Auxe immediately stops the permission-check stream.
 

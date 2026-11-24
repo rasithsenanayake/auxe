@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auxe Companion",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minimum_chrome_version": "116",
   "description": "Choose separate playback outputs for Chrome tabs and installed YouTube Music.",
   "permissions": [
@@ -9,8 +9,11 @@
     "tabs",
     "tabCapture",
     "offscreen",
-    "nativeMessaging"
+    "nativeMessaging",
+    "scripting",
+    "contextMenus"
   ],
+  "host_permissions": ["https://music.youtube.com/*"],
   "background": {
     "service_worker": "worker.js"
   },
@@ -25,15 +28,5 @@
     }
   },
   "options_page": "devices.html",
-  "content_scripts": [
-    {
-      "matches": [
-        "https://music.youtube.com/*"
-      ],
-      "js": [
-        "music.js"
-      ]
-    }
-  ],
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzTsMElqWc0RAhbiqiQW4m14M94w1bjqG5e9vmdgbEJbz8efv2g2lPmBS3DAnn0K3ikpSg9vwhbiUkXPTJTyRGygp2GkP9S8vMpFglgpB3hbXhXJDFoqFoPb9DkhH0veOznILvhUyugyxRkEHyDIFOfCqSKKoBvMmknHFb2rvi4/dm+0zOEuIsyyJU8Pn0f2GSVO5lN2RqQZ9Sjn02fLBe7OzCez+CW3tB/fsl5fwhdzE3G4SWhLxGr/3tU9ou4zmfWGmngg4DS8mps6BkWOuTUqNSrd47uUh4lWCEHU9xoaqn1MCFPSG6gczEuf/L9ZqPzYi+fkeSw9PWhwN9fxCHwIDAQAB"
 }

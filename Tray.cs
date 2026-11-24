@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -39,27 +41,38 @@ sealed class Tray : ApplicationContext
     readonly Timer refresh = new Timer { Interval = 1200 };
     readonly Icon[] frames = Enumerable.Range(0, 5).Select(SpeakerArt.Draw).ToArray();
     readonly Form panel = new Form();
-    readonly Label heading = new Label();
+    readonly Label heading = new CrispLabel();
     readonly PictureBox mark = new PictureBox();
     Button settings;
-    readonly ToolStripMenuItem lightItem = new ToolStripMenuItem("Light appearance");
-    readonly Timer themeFade = new Timer { Interval = 15 };
+    readonly AppearanceButton appearance = new AppearanceButton();
+    readonly ToolTip hints = new ToolTip();
+    readonly Timer panelFade = new Timer { Interval = 15 };
+    readonly Stopwatch panelClock = new Stopwatch();
+    readonly Timer appearanceTimer = new Timer { Interval = 15 };
+    readonly Stopwatch appearanceClock = new Stopwatch();
+    PictureBox oldAppearance;
+    Point revealOrigin;
+    double fadeStart;
+    bool panelClosing;
+    readonly float displayScale = DisplayScale();
     readonly Timer updateTimer = new Timer { Interval = 30000 };
     readonly ToolStripMenuItem updatesItem = new ToolStripMenuItem("Automatic updates");
     readonly ToolStripMenuItem downloadItem = new ToolStripMenuItem("Check for updates");
+    readonly ToolStripMenuItem companionItem = new ToolStripMenuItem("Chrome companion setup");
     bool checkingUpdate;
     string readyUpdate;
     readonly Font rowFont = Typography.Heading(10);
-    readonly Label status = new Label();
+    readonly Label status = new CrispLabel();
     readonly FlowLayoutPanel rows = new FlowLayoutPanel();
     readonly Dictionary<string, Tuple<string, long>> requested = new Dictionary<string, Tuple<string, long>>();
+    readonly Dictionary<string, Bitmap> appIcons = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
     readonly object audioLock = new object();
     Audio routingAudio;
     bool refreshing;
     bool routing;
     bool disposed;
     bool nativeAudioUnavailable;
-    readonly ContextMenuStrip settingsMenu = new ContextMenuStrip();
+    readonly FadingMenu settingsMenu = new FadingMenu();
     readonly ToolStripMenuItem startupItem = new ToolStripMenuItem("Start with Windows");
     readonly Font bodyFont = Typography.Text(10);
     readonly Font headingFont = Typography.Heading(20);
@@ -80,7 +93,7 @@ sealed class Tray : ApplicationContext
         tray.MouseClick += (s, e) =>
         {
             if (e.Button != MouseButtons.Left) return;
-            if (panel.Visible) panel.Hide(); else ShowPanel();
+            if (panel.Visible) HidePanel(); else ShowPanel();
         };
         tray.Visible = true;
         animation.Tick += (s, e) => Animate();
@@ -100,19 +113,18 @@ sealed class Tray : ApplicationContext
         panel.Deactivate += (s, e) =>
         {
             if (PickerOpen(false) || settingsMenu.Visible) return;
-            panel.Hide();
+            HidePanel();
         };
         panel.VisibleChanged += (s, e) => { if (panel.Visible) refresh.Start(); else refresh.Stop(); };
-        panel.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) panel.Hide(); };
+        panel.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) HidePanel(); };
         heading.Text = "Auxe";
         heading.Font = headingFont;
         mark.Bounds = new Rectangle(20, 16, 36, 36);
         mark.BackColor = Color.FromArgb(228, 234, 246);
         mark.SizeMode = PictureBoxSizeMode.CenterImage;
         mark.Image = frames[0].ToBitmap();
-        using (var shape = SpeakerArt.Rounded(mark.ClientRectangle, 18)) mark.Region = new Region(shape);
-        heading.SetBounds(62, 13, 330, 44);
-        rows.SetBounds(20, 66, 398, 50);
+        heading.SetBounds(62, 13, 252, 44);
+        rows.SetBounds(20, 66, 426, 50);
         rows.FlowDirection = FlowDirection.TopDown;
         rows.WrapContents = false;
         rows.AutoScroll = true;
@@ -121,23 +133,32 @@ sealed class Tray : ApplicationContext
         settings = new Button
         {
             Text = "Settings", AccessibleName = "Auxe settings", Font = bodyFont,
-            Bounds = new Rectangle(342, 19, 76, 30), FlatStyle = FlatStyle.Flat,
+            Bounds = new Rectangle(370, 19, 76, 30), FlatStyle = FlatStyle.Flat,
             BackColor = Color.White, Cursor = Cursors.Hand
         };
         settings.FlatAppearance.BorderSize = 0;
-        using (var shape = SpeakerArt.Rounded(settings.ClientRectangle, 16)) settings.Region = new Region(shape);
         settingsMenu.Font = bodyFont;
         settingsMenu.Items.Add(startupItem);
-        settingsMenu.Items.Add(lightItem);
+        appearance.Bounds = new Rectangle(330, 19, 32, 30);
         settingsMenu.Items.Add(updatesItem);
         settingsMenu.Items.Add(downloadItem);
+        settingsMenu.Items.Add(companionItem);
         settingsMenu.Renderer = new OutputPicker.PickerRenderer();
-        settingsMenu.ShowImageMargin = false; settingsMenu.ShowCheckMargin = false;
-        startupItem.Padding = lightItem.Padding = updatesItem.Padding = downloadItem.Padding = new Padding(7, 4, 23, 4);
+        settingsMenu.ShowImageMargin = false;
+        settingsMenu.ShowCheckMargin = true;
+        startupItem.Padding = updatesItem.Padding = downloadItem.Padding = companionItem.Padding = new Padding(7, 4, 12, 4);
+        companionItem.Click += (sender, args) =>
+        {
+            var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Startup.Executable), "chrome");
+            MessageBox.Show(panel,
+                "Open chrome://extensions in Chrome, enable Developer mode, and choose Load unpacked. Select this folder:\n\n" +
+                folder + "\n\nIf Auxe Companion is already there, click Reload. In the YouTube Music app, press Ctrl+Shift+U or right-click and choose Toggle Auxe output for YouTube Music.",
+                "Chrome companion setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
         settingsMenu.Opening += (sender, args) =>
         {
             startupItem.Checked = Startup.Enabled;
-            lightItem.Checked = !Theme.Dark;
+
             updatesItem.Checked = Updates.Enabled;
             downloadItem.Text = readyUpdate == null ? "Check for updates" : "Install downloaded update";
             downloadItem.Enabled = !checkingUpdate;
@@ -158,7 +179,7 @@ sealed class Tray : ApplicationContext
             if (readyUpdate != null) ApplyUpdate(true);
             else CheckForUpdate(true);
         };
-        lightItem.Click += (sender, args) => { Theme.Toggle(); ApplyTheme(); signature = null; BeginRefresh(); };
+        appearance.Click += (sender, args) => ToggleAppearance();
         startupItem.Click += (sender, args) =>
         {
             try { Startup.Set(!Startup.Enabled); startupItem.Checked = Startup.Enabled; }
@@ -168,9 +189,14 @@ sealed class Tray : ApplicationContext
             }
         };
         settings.Click += (sender, args) =>
-            settingsMenu.Show(settings, new Point(settings.Width, settings.Height + 4), ToolStripDropDownDirection.BelowLeft);
-        panel.Controls.AddRange(new Control[] { mark, heading, rows, status, settings });
-        themeFade.Tick += (sender, args) => { panel.Opacity = Math.Min(1, panel.Opacity + 0.075); if (panel.Opacity >= 1) themeFade.Stop(); };
+            settingsMenu.ShowAnimated(settings);
+        panel.Controls.AddRange(new Control[] { mark, heading, rows, status, settings, appearance });
+        if (displayScale != 1) panel.Scale(new SizeF(displayScale, displayScale));
+        using (var shape = SpeakerArt.Rounded(mark.ClientRectangle, Px(18))) mark.Region = new Region(shape);
+        using (var shape = SpeakerArt.Rounded(settings.ClientRectangle, Px(16))) settings.Region = new Region(shape);
+        SizePanel(1);
+        panelFade.Tick += (sender, args) => AdvancePanelFade();
+        appearanceTimer.Tick += (sender, args) => AdvanceAppearance();
         ApplyTheme();
         updateTimer.Tick += (sender, args) => CheckForUpdate(false);
         StartUpdateTimer();
@@ -212,8 +238,6 @@ sealed class Tray : ApplicationContext
     void SetStatus(string text)
     {
         status.Text = text;
-        signature = null;
-        if (panel.Visible) BeginRefresh();
     }
 
     void BeginRefresh()
@@ -246,6 +270,58 @@ sealed class Tray : ApplicationContext
         }
     }
 
+    void ToggleAppearance()
+    {
+        EndAppearance();
+        if (SystemInformation.IsMenuAnimationEnabled && panel.Visible && !panelClosing)
+        {
+            var snapshot = new Bitmap(panel.ClientSize.Width, panel.ClientSize.Height);
+            panel.DrawToBitmap(snapshot, panel.ClientRectangle);
+            oldAppearance = new PictureBox { Image = snapshot, Bounds = panel.ClientRectangle, TabStop = false };
+            revealOrigin = new Point(appearance.Left + appearance.Width / 2, appearance.Top + appearance.Height / 2);
+            panel.Controls.Add(oldAppearance);
+            oldAppearance.BringToFront();
+        }
+        Theme.Toggle();
+        ApplyTheme();
+        if (oldAppearance == null) return;
+        appearanceClock.Restart();
+        appearanceTimer.Start();
+    }
+
+    void AdvanceAppearance()
+    {
+        double progress = Math.Min(1, appearanceClock.Elapsed.TotalMilliseconds / 210);
+        if (progress >= 1 || !panel.Visible || panel.ClientSize != oldAppearance.Size)
+        {
+            EndAppearance();
+            return;
+        }
+        int dx = Math.Max(revealOrigin.X, oldAppearance.Width - revealOrigin.X);
+        int dy = Math.Max(revealOrigin.Y, oldAppearance.Height - revealOrigin.Y);
+        float radius = (float)(Math.Sqrt(dx * dx + dy * dy) * (1 - Math.Pow(1 - progress, 3)));
+        if (radius < 1) return;
+        using (var hole = new GraphicsPath())
+        {
+            hole.AddEllipse(revealOrigin.X - radius, revealOrigin.Y - radius, 2 * radius, 2 * radius);
+            var next = new Region(oldAppearance.ClientRectangle);
+            next.Exclude(hole);
+            var previous = oldAppearance.Region;
+            oldAppearance.Region = next;
+            if (previous != null) previous.Dispose();
+        }
+    }
+
+    void EndAppearance()
+    {
+        appearanceTimer.Stop();
+        if (oldAppearance == null) return;
+        var image = oldAppearance.Image;
+        oldAppearance.Dispose();
+        image.Dispose();
+        oldAppearance = null;
+    }
+
     void ApplyTheme()
     {
         panel.BackColor = Theme.Canvas;
@@ -253,7 +329,10 @@ sealed class Tray : ApplicationContext
         mark.BackColor = Theme.Mark;
         status.ForeColor = Theme.Muted;
         settings.BackColor = Theme.Card;
-        startupItem.ForeColor = lightItem.ForeColor = updatesItem.ForeColor = downloadItem.ForeColor = Theme.Ink;
+        startupItem.ForeColor = updatesItem.ForeColor = downloadItem.ForeColor = companionItem.ForeColor = Theme.Ink;
+        appearance.AccessibleName = Theme.Dark ? "Switch to Light appearance" : "Switch to Dark appearance";
+        hints.SetToolTip(appearance, appearance.AccessibleName);
+        appearance.Invalidate();
         foreach (var row in rows.Controls.OfType<Panel>())
         {
             row.BackColor = Theme.Card;
@@ -261,22 +340,82 @@ sealed class Tray : ApplicationContext
                 detail.ForeColor = Theme.Muted;
             row.Invalidate(true);
         }
-        if (panel.Visible && SystemInformation.IsMenuAnimationEnabled)
-        {
-            panel.Opacity = 0.86;
-            themeFade.Start();
-        }
     }
 
     void ShowPanel()
     {
         anchor = Cursor.Position;
-        signature = null;
-        var area = Screen.FromPoint(anchor).WorkingArea;
-        panel.Location = new Point(Math.Max(area.Left, Math.Min(anchor.X - 205, area.Right - panel.Width)), Math.Max(area.Top, area.Bottom - panel.Height - 9));
+        SizePanel(Math.Max(1, rows.Controls.Count));
+        panel.Opacity = SystemInformation.IsMenuAnimationEnabled ? 0.12 : 1;
         panel.Show();
+        AnimatePanel(false);
         RefreshRows();
         panel.Activate();
+    }
+
+    void HidePanel()
+    {
+        if (panel.Visible && !panelClosing)
+        {
+            EndAppearance();
+            AnimatePanel(true);
+        }
+    }
+
+    void AnimatePanel(bool close)
+    {
+        panelClosing = close;
+        if (!SystemInformation.IsMenuAnimationEnabled)
+        {
+            panelFade.Stop();
+            if (close) panel.Hide();
+            panel.Opacity = 1;
+            panelClosing = false;
+            return;
+        }
+        fadeStart = panel.Opacity;
+        panelClock.Restart();
+        panelFade.Start();
+    }
+
+    void AdvancePanelFade()
+    {
+        double progress = Math.Min(1, panelClock.Elapsed.TotalMilliseconds / (panelClosing ? 95 : 145));
+        double ease = 1 - Math.Pow(1 - progress, 3);
+        panel.Opacity = fadeStart + ((panelClosing ? 0 : 1) - fadeStart) * ease;
+        if (progress < 1) return;
+        panelFade.Stop();
+        if (panelClosing) panel.Hide();
+        panel.Opacity = 1;
+        panelClosing = false;
+    }
+
+    static float DisplayScale()
+    {
+        using (var desktop = Graphics.FromHwnd(IntPtr.Zero)) return desktop.DpiX / 96f;
+    }
+
+    int Px(int value) { return (int)Math.Round(value * displayScale); }
+
+    void SizePanel(int rowCount)
+    {
+        var area = Screen.FromPoint(anchor).WorkingArea;
+        int contentHeight = Math.Min(rowCount * Px(66), Math.Min(Px(396), Math.Max(Px(66), area.Height - Px(122))));
+        var size = new Size(Px(466), contentHeight + Px(100));
+        if (panel.ClientSize != size)
+        {
+            panel.ClientSize = size;
+            using (var clip = SpeakerArt.Rounded(panel.ClientRectangle, Px(38)))
+            {
+                var old = panel.Region;
+                panel.Region = new Region(clip);
+                if (old != null) old.Dispose();
+            }
+        }
+        rows.Height = contentHeight;
+        status.SetBounds(Px(21), Px(68) + contentHeight, Px(423), Px(25));
+        panel.Location = new Point(Math.Max(area.Left, Math.Min(anchor.X - Px(205), area.Right - panel.Width)),
+            Math.Max(area.Top, Math.Min(anchor.Y, area.Bottom) - panel.Height - Px(9)));
     }
 
     void Animate()
@@ -297,7 +436,7 @@ sealed class Tray : ApplicationContext
 
     async void RefreshRows()
     {
-        if (disposed || refreshing || routing || PickerOpen() || settingsMenu.Visible) return;
+        if (disposed || panelClosing || refreshing || routing || PickerOpen() || settingsMenu.Visible) return;
         refreshing = true;
         try
         {
@@ -318,7 +457,7 @@ sealed class Tray : ApplicationContext
                     return Tuple.Create(apps, outputs, preferences);
                 }
             });
-            if (snapshot == null || disposed || !panel.Visible || routing || PickerOpen() || settingsMenu.Visible) return;
+            if (snapshot == null || disposed || !panel.Visible || panelClosing || routing || PickerOpen() || settingsMenu.Visible) return;
             if (nativeAudioUnavailable) { nativeAudioUnavailable = false; status.Text = ""; }
             RenderRows(snapshot.Item1, snapshot.Item2, snapshot.Item3);
         }
@@ -332,18 +471,33 @@ sealed class Tray : ApplicationContext
     void RenderRows(List<AudioApp> apps, List<Output> outputs, Dictionary<string, string> preferences)
     {
         var chrome = bridge.Sources();
+        foreach (var app in apps)
+        {
+            Tuple<string, long> pending;
+            if (requested.TryGetValue(app.Key, out pending) && app.Active && app.ActiveOutputs.Count == 1 &&
+                app.ActiveOutputs.Contains(pending.Item1)) requested.Remove(app.Key);
+        }
+        apps = apps.OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         var next = string.Join("|", apps.Select(app => app.Key + ":" + string.Join(",", app.Outputs.OrderBy(x => x)) + "/" + string.Join(",", app.ActiveOutputs.OrderBy(x => x)))) +
             string.Join("|", outputs.Select(output => output.Id + output.Name)) +
-            string.Join("|", chrome.Select(source => source.Signature())) + expanded + status.Text +
+            string.Join("|", chrome.Select(source => source.Signature())) + expanded +
             string.Join("|", preferences.Select(item => item.Key + ":" + item.Value)) +
-            string.Join("|", requested.Select(item => item.Key + ":" + (Stopwatch.GetTimestamp() >= item.Value.Item2)));
+            string.Join("|", requested.Select(item => item.Key + ":" + item.Value.Item1 + ":" + (Stopwatch.GetTimestamp() >= item.Value.Item2)));
         if (next == signature) return;
         signature = next;
         var scroll = -rows.AutoScrollPosition.Y;
+        var focusName = rows.Controls.OfType<Panel>().SelectMany(row => row.Controls.OfType<OutputPicker>())
+            .Where(picker => picker.Focused).Select(picker => picker.AccessibleName).FirstOrDefault();
         rows.SuspendLayout();
         try
         {
             while (rows.Controls.Count != 0) rows.Controls[0].Dispose();
+            var activeKeys = new HashSet<string>(apps.Select(app => app.Key), StringComparer.OrdinalIgnoreCase);
+            foreach (var old in appIcons.Keys.Where(key => !activeKeys.Contains(key)).ToArray())
+            {
+                if (appIcons[old] != null) appIcons[old].Dispose();
+                appIcons.Remove(old);
+            }
             outputs.Insert(0, new Output { Name = "System default" });
             bool chromeShown = false;
             foreach (var app in apps)
@@ -357,17 +511,16 @@ sealed class Tray : ApplicationContext
                 Tuple<string, long> pending;
                 if (requested.TryGetValue(app.Key, out pending))
                 {
-                    if (app.Active && app.ActiveOutputs.SetEquals(new[] { pending.Item1 }))
-                        requested.Remove(app.Key);
-                    else
-                        subtitle = Stopwatch.GetTimestamp() < pending.Item2
+                    subtitle = Stopwatch.GetTimestamp() < pending.Item2
                             ? "Switching output…" : "Restart playback to switch";
                 }
                 string preference;
                 if (!preferences.TryGetValue(app.Key, out preference)) preference = id;
                 bool chromeOverrides = isChrome && chrome.Any(source => source.Enabled);
+                if (isChrome && chrome.Count == 0 && !requested.ContainsKey(app.Key))
+                    subtitle = "Tab controls need the companion";
                 AddRow(app.Name, subtitle, outputs, preference, selected => ChangeWindowsOutput(app.Key, selected.Id, chromeOverrides),
-                    isChrome && chrome.Any(source => !source.Standalone));
+                    isChrome && chrome.Any(source => !source.Standalone), AppIcon(app.Key));
                 if (isChrome && expanded) AddChromeRows(chrome.Where(source => !source.Standalone), true);
             }
             if (!chromeShown && chrome.Any(source => !source.Standalone))
@@ -380,22 +533,17 @@ sealed class Tray : ApplicationContext
             {
                 AddRow("No apps playing", "Start playback to choose an output.", null, null, null, false);
             }
-            var area = Screen.FromPoint(anchor).WorkingArea;
-            int contentHeight = Math.Min(Math.Max(60, rows.Controls.Count * 66), Math.Min(396, Math.Max(64, area.Height - 112)));
-            panel.ClientSize = new Size(438, contentHeight + (string.IsNullOrEmpty(status.Text) ? 82 : 106));
-            rows.Height = contentHeight;
-            status.SetBounds(21, 68 + contentHeight, 395, 30);
-            panel.Location = new Point(Math.Max(area.Left, Math.Min(anchor.X - 205, area.Right - panel.Width)),
-                Math.Max(area.Top, Math.Min(anchor.Y, area.Bottom) - panel.Height - 9));
-            using (var clip = SpeakerArt.Rounded(new Rectangle(0, 0, panel.Width, panel.Height), 38))
-            {
-                var old = panel.Region;
-                panel.Region = new Region(clip);
-                if (old != null) old.Dispose();
-            }
-            rows.AutoScrollPosition = new Point(0, scroll);
+            SizePanel(rows.Controls.Count);
         }
-        finally { rows.ResumeLayout(); }
+        finally { rows.ResumeLayout(true); }
+        if (focusName != null && (panel.ContainsFocus || Form.ActiveForm == panel))
+        {
+            var samePicker = rows.Controls.OfType<Panel>().SelectMany(row => row.Controls.OfType<OutputPicker>())
+                .FirstOrDefault(picker => picker.AccessibleName == focusName);
+            if (samePicker != null) samePicker.Focus();
+        }
+        rows.AutoScrollPosition = new Point(0, scroll);
+
     }
 
     async Task<bool> ChangeWindowsOutput(string key, string output, bool chromeOverrides)
@@ -426,7 +574,7 @@ sealed class Tray : ApplicationContext
                 : output == null ? "Using Windows defaults for new playback." : "";
             return true;
         }
-        finally { routing = false; signature = null; }
+        finally { routing = false; }
     }
 
     void AddChromeRows(IEnumerable<ChromeSource> sources, bool child)
@@ -440,16 +588,80 @@ sealed class Tray : ApplicationContext
                 {
                     await bridge.Route(source, selected.Id);
                     return false; // The Chrome snapshot confirms selection.
-                }, false);
+                }, false, null, source.Standalone);
         }
     }
 
-    void AddRow(string name, string subtitle, List<Output> outputs, string selected, Func<Output, Task<bool>> change, bool expander)
+    Bitmap AppIcon(string path)
     {
-        var row = new Panel { Width = 381, Height = 60, Margin = new Padding(0, 0, 0, 6), BackColor = Theme.Card };
-        using (var clip = SpeakerArt.Rounded(row.ClientRectangle, 20)) row.Region = new Region(clip);
-        var title = new Label { Text = name, UseMnemonic = false, AutoEllipsis = true, Font = rowFont, Bounds = new Rectangle(15, 9, outputs == null ? 310 : 160, 22) };
-        var detail = new Label { Text = subtitle, UseMnemonic = false, AutoEllipsis = true, ForeColor = Theme.Muted, Bounds = new Rectangle(15, 30, outputs == null ? 310 : 160, 22) };
+        Bitmap result;
+        if (appIcons.TryGetValue(path, out result)) return result;
+        if (path.Length > 3 && char.IsLetter(path[0]) && path[1] == ':' && path[2] == '\\' &&
+            string.Equals(System.IO.Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase) &&
+            System.IO.File.Exists(path))
+        {
+            try
+            {
+                result = PackageIcon(path);
+                if (result == null)
+                    using (var icon = Icon.ExtractAssociatedIcon(path))
+                        if (icon != null) result = icon.ToBitmap();
+            }
+            catch (ArgumentException) { }
+            catch (System.ComponentModel.Win32Exception) { }
+        }
+        appIcons[path] = result;
+        return result;
+    }
+
+    static Bitmap PackageIcon(string executable)
+    {
+        string directory = Path.GetDirectoryName(executable);
+        string manifest = Path.Combine(directory, "AppxManifest.xml");
+        if (!File.Exists(manifest)) return null;
+        try
+        {
+            var document = new System.Xml.XmlDocument { XmlResolver = null };
+            using (var reader = System.Xml.XmlReader.Create(manifest,
+                new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit }))
+                document.Load(reader);
+            var application = document.GetElementsByTagName("Application").OfType<System.Xml.XmlElement>()
+                .FirstOrDefault(element => string.Equals(element.GetAttribute("Executable"),
+                    Path.GetFileName(executable), StringComparison.OrdinalIgnoreCase));
+            if (application == null) return null;
+            var visual = application.ChildNodes.OfType<System.Xml.XmlElement>()
+                .FirstOrDefault(element => element.LocalName == "VisualElements");
+            if (visual == null) return null;
+            string logo = visual.GetAttribute("Square44x44Logo");
+            if (string.IsNullOrWhiteSpace(logo) || Path.IsPathRooted(logo)) return null;
+            string image = Path.GetFullPath(Path.Combine(directory, logo));
+            if (!image.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(Path.GetExtension(image), ".png", StringComparison.OrdinalIgnoreCase)) return null;
+            string stem = image.Substring(0, image.Length - 4);
+            string file = new[] { stem + ".targetsize-32_altform-unplated.png", stem + ".targetsize-32.png",
+                image, stem + ".scale-200.png" }.FirstOrDefault(File.Exists);
+            if (file == null) return null;
+            using (var input = File.OpenRead(file))
+            using (var bitmap = new Bitmap(input)) return new Bitmap(bitmap);
+        }
+        catch (System.Xml.XmlException) { return null; }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+        catch (ArgumentException) { return null; }
+    }
+
+    void AddRow(string name, string subtitle, List<Output> outputs, string selected, Func<Output, Task<bool>> change,
+        bool expander, Bitmap appIcon = null, bool music = false)
+    {
+        var row = new Panel { Width = 409, Height = 60, Margin = new Padding(0, 0, 0, 6), BackColor = Theme.Card };
+        bool decorated = appIcon != null || music;
+        int textLeft = decorated ? 44 : 15;
+        int textWidth = (outputs == null ? 373 : 199) - textLeft;
+        var title = new CrispLabel { Text = name, UseMnemonic = false, AutoEllipsis = true, Font = rowFont, Bounds = new Rectangle(textLeft, 9, textWidth, 22) };
+        var detail = new CrispLabel { Text = subtitle, UseMnemonic = false, AutoEllipsis = true, ForeColor = Theme.Muted, Bounds = new Rectangle(textLeft, 30, textWidth, 22) };
+        if (decorated) row.Controls.Add(new AppBadge(appIcon) { Bounds = new Rectangle(12, 18, 24, 24) });
+        hints.SetToolTip(title, name.Trim());
+        hints.SetToolTip(detail, subtitle);
         row.Controls.AddRange(new Control[] { title, detail });
         if (outputs != null)
         {
@@ -463,18 +675,22 @@ sealed class Tray : ApplicationContext
             })
             {
                 AccessibleName = name + " output",
-                Bounds = new Rectangle(177, 12, expander ? 155 : 190, 36)
+                Bounds = new Rectangle(205, 12, expander ? 155 : 190, 36)
             };
+            hints.SetToolTip(picker, picker.Text);
+            picker.TextChanged += (sender, args) => hints.SetToolTip(picker, picker.Text);
             row.Controls.Add(picker);
         }
         if (expander)
         {
             var button = new Button { Text = expanded ? "⌃" : "⌄", AccessibleName = expanded ? "Collapse Chrome tabs" : "Expand Chrome tabs",
-                Bounds = new Rectangle(339, 15, 30, 28), FlatStyle = FlatStyle.Flat };
+                Bounds = new Rectangle(367, 15, 30, 28), FlatStyle = FlatStyle.Flat };
             button.FlatAppearance.BorderSize = 0;
             button.Click += (s, e) => { expanded = !expanded; RefreshRows(); };
             row.Controls.Add(button);
         }
+        if (displayScale != 1) row.Scale(new SizeF(displayScale, displayScale));
+        using (var clip = SpeakerArt.Rounded(row.ClientRectangle, Px(20))) row.Region = new Region(clip);
         rows.Controls.Add(row);
     }
 
@@ -482,11 +698,13 @@ sealed class Tray : ApplicationContext
     {
         if (disposing)
         {
-            refresh.Dispose(); animation.Dispose(); themeFade.Dispose(); updateTimer.Dispose(); tray.Visible = false;
+            EndAppearance(); appearanceTimer.Dispose();
+            refresh.Dispose(); animation.Dispose(); panelFade.Dispose(); updateTimer.Dispose(); tray.Visible = false;
             tray.ContextMenuStrip.Dispose(); tray.Dispose(); mark.Image.Dispose(); panel.Dispose();
             disposed = true;
             lock (audioLock) { if (routingAudio != null) routingAudio.Dispose(); }
-            settingsMenu.Dispose(); bridge.Dispose(); audio.Dispose(); rowFont.Dispose(); bodyFont.Dispose(); headingFont.Dispose();
+            hints.Dispose(); settingsMenu.Dispose(); bridge.Dispose(); audio.Dispose(); rowFont.Dispose(); bodyFont.Dispose(); headingFont.Dispose();
+            foreach (var image in appIcons.Values) if (image != null) image.Dispose();
             foreach (var icon in frames) icon.Dispose();
         }
         base.Dispose(disposing);
@@ -500,16 +718,12 @@ sealed class OutputPicker : Button
     static Color Highlight { get { return Theme.Highlight; } }
     static Color Ink { get { return Theme.Ink; } }
     static Color Accent { get { return Theme.Accent; } }
-    readonly ContextMenuStrip menu;
+    readonly FadingMenu menu;
     readonly Font menuFont = Typography.Text(10);
     bool hover;
     bool opening;
     bool busy;
-    readonly Timer fade = new Timer { Interval = 15 };
-    readonly Stopwatch fadeClock = new Stopwatch();
-    bool closing;
-    bool finishClose;
-    ToolStripMenuItem current;
+ToolStripMenuItem current;
 
     public bool MenuOpen { get { return opening || menu.Visible; } }
     public bool Busy { get { return busy; } }
@@ -522,11 +736,11 @@ sealed class OutputPicker : Button
         UseMnemonic = false;
         Cursor = Cursors.Hand;
         AccessibleRole = AccessibleRole.ButtonMenu;
-        menu = new ContextMenuStrip
+        menu = new FadingMenu
         {
             Renderer = new PickerRenderer(),
             ShowImageMargin = false,
-            ShowCheckMargin = false,
+            ShowCheckMargin = true,
             Padding = new Padding(5),
             Font = menuFont,
             BackColor = Surface,
@@ -538,7 +752,7 @@ sealed class OutputPicker : Button
             var item = new ToolStripMenuItem(output.Name.Replace("&", "&&"))
             {
                 ForeColor = Ink,
-                Padding = new Padding(9, 5, 26, 5)
+                Padding = new Padding(9, 5, 12, 5)
             };
             item.Click += async (sender, args) =>
             {
@@ -561,47 +775,7 @@ sealed class OutputPicker : Button
         current = current ?? (ToolStripMenuItem)menu.Items[0];
         current.Checked = true;
         Text = outputs[menu.Items.IndexOf(current)].Name;
-        menu.SizeChanged += (sender, args) =>
-        {
-            if (menu.Width < 14 || menu.Height < 14) return;
-            using (var path = SpeakerArt.Rounded(menu.ClientRectangle, 14))
-            {
-                var previous = menu.Region;
-                menu.Region = new Region(path);
-                if (previous != null) previous.Dispose();
-            }
-        };
-        fade.Tick += (sender, args) =>
-        {
-            double progress = Math.Min(1, fadeClock.Elapsed.TotalMilliseconds / (closing ? 90 : 125));
-            menu.Opacity = closing ? 1 - progress : 1 - Math.Pow(1 - progress, 3);
-            if (progress < 1) return;
-            fade.Stop();
-            if (closing)
-            {
-                finishClose = true;
-                try { menu.Close(); }
-                finally { finishClose = false; closing = false; }
-            }
-        };
-        menu.Closing += (sender, args) =>
-        {
-            if (finishClose || !SystemInformation.IsMenuAnimationEnabled ||
-                (args.CloseReason != ToolStripDropDownCloseReason.ItemClicked &&
-                 args.CloseReason != ToolStripDropDownCloseReason.Keyboard &&
-                 args.CloseReason != ToolStripDropDownCloseReason.CloseCalled)) return;
-            args.Cancel = true;
-            if (closing) return;
-            closing = true;
-            fadeClock.Restart();
-            fade.Start();
-        };
-        menu.Closed += (sender, args) =>
-        {
-            fade.Stop();
-            closing = false;
-            Invalidate();
-        };
+        menu.Closed += (sender, args) => Invalidate();
     }
 
     protected override void OnClick(EventArgs args)
@@ -612,14 +786,7 @@ sealed class OutputPicker : Button
         opening = true;
         try
         {
-            bool animate = SystemInformation.IsMenuAnimationEnabled;
-            menu.Opacity = animate ? 0.10 : 1;
-            menu.Show(this, new Point(Width, Height + 4), ToolStripDropDownDirection.BelowLeft);
-            if (animate && menu.Visible)
-            {
-                fadeClock.Restart();
-                fade.Start();
-            }
+            menu.ShowAnimated(this);
             current.Select();
         }
         finally { opening = false; Invalidate(); }
@@ -635,26 +802,38 @@ sealed class OutputPicker : Button
         var graphics = args.Graphics;
         graphics.Clear(Parent.BackColor);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        float scale = Height / 36f;
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-        using (var path = SpeakerArt.Rounded(bounds, 16))
+        using (var path = SpeakerArt.Rounded(bounds, (int)Math.Round(16 * scale)))
         using (var fill = new SolidBrush(hover || MenuOpen ? Highlight : Surface))
         using (var border = new Pen(Focused || MenuOpen ? Accent : Theme.Border))
         using (var chevron = new Pen(Accent, 1.5f))
         {
             graphics.FillPath(fill, path);
             graphics.DrawPath(border, path);
-            TextRenderer.DrawText(graphics, Text, Font, new Rectangle(11, 0, Width - 35, Height), Ink,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-            var x = Width - 17;
-            var y = Height / 2;
+            using (var brush = new SolidBrush(Ink))
+            using (var format = new StringFormat
+            {
+                LineAlignment = StringAlignment.Center,
+                Trimming = StringTrimming.EllipsisCharacter,
+                FormatFlags = StringFormatFlags.NoWrap
+            })
+            {
+                graphics.DrawString(busy ? "Switching…" : Text, Font, brush,
+                    new RectangleF(10 * scale, 0, Width - 33 * scale, Height), format);
+            }
+            float x = Width - 16 * scale;
+            float y = Height / 2f;
             int direction = menu.Visible ? -1 : 1;
-            graphics.DrawLines(chevron, new[] { new Point(x - 4, y - 2 * direction), new Point(x, y + 2 * direction), new Point(x + 4, y - 2 * direction) });
+            float rise = 2 * scale * direction;
+            graphics.DrawLines(chevron, new[] { new PointF(x - 4 * scale, y - rise), new PointF(x, y + rise), new PointF(x + 4 * scale, y - rise) });
         }
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { fade.Dispose(); if (menu != null) menu.Dispose(); menuFont.Dispose(); }
+        if (disposing) { if (menu != null) menu.Dispose(); menuFont.Dispose(); }
         base.Dispose(disposing);
     }
 
@@ -673,13 +852,194 @@ sealed class OutputPicker : Button
             using (var path = SpeakerArt.Rounded(new Rectangle(0, 0, item.Width, item.Height), 12))
             using (var fill = new SolidBrush(item.Selected ? Highlight : Surface))
                 args.Graphics.FillPath(fill, path);
-            if (item.Checked)
+        }
+
+        protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs args)
+        {
+            var rect = args.ImageRectangle;
+            float x = rect.Left + rect.Width / 2f;
+            float y = rect.Top + rect.Height / 2f;
+            float size = Math.Max(4, rect.Width / 4f);
+            args.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var pen = new Pen(Accent, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                args.Graphics.DrawLines(pen, new[] { new PointF(x - size, y), new PointF(x - size / 3, y + size * 0.55f), new PointF(x + size, y - size * 0.7f) });
+        }
+    }
+}
+
+sealed class CrispLabel : Label
+{
+    protected override void OnPaint(PaintEventArgs args)
+    {
+        args.Graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        base.OnPaint(args);
+    }
+}
+
+sealed class FadingMenu : ContextMenuStrip
+{
+    readonly Timer fade = new Timer { Interval = 15 };
+    readonly Stopwatch clock = new Stopwatch();
+    double fadeStart;
+    bool closing;
+    bool finishClose;
+
+    public FadingMenu()
+    {
+        fade.Tick += (sender, args) =>
+        {
+            double progress = Math.Min(1, clock.Elapsed.TotalMilliseconds / (closing ? 90 : 125));
+            double ease = 1 - Math.Pow(1 - progress, 3);
+            Opacity = fadeStart + ((closing ? 0 : 1) - fadeStart) * ease;
+            if (progress < 1) return;
+            fade.Stop();
+            if (closing)
             {
-                var x = item.Width - 15;
-                var y = item.Height / 2;
-                using (var pen = new Pen(Accent, 1.7f))
-                    args.Graphics.DrawLines(pen, new[] { new Point(x - 5, y), new Point(x - 2, y + 3), new Point(x + 4, y - 4) });
+                finishClose = true;
+                try { Close(); }
+                finally { finishClose = false; closing = false; }
             }
+        };
+    }
+
+    public void ShowAnimated(Control anchor)
+    {
+        bool animate = SystemInformation.IsMenuAnimationEnabled;
+        Opacity = animate ? 0.12 : 1;
+        Show(anchor, new Point(anchor.Width, anchor.Height + 4), ToolStripDropDownDirection.BelowLeft);
+        if (animate && Visible) StartFade(false);
+    }
+
+    void StartFade(bool close)
+    {
+        closing = close;
+        fadeStart = Opacity;
+        clock.Restart();
+        fade.Start();
+    }
+
+    protected override void OnSizeChanged(EventArgs args)
+    {
+        base.OnSizeChanged(args);
+        if (Width < 14 || Height < 14) return;
+        using (var path = SpeakerArt.Rounded(ClientRectangle, 14))
+        {
+            var previous = Region;
+            Region = new Region(path);
+            if (previous != null) previous.Dispose();
+        }
+    }
+
+    protected override void OnClosing(ToolStripDropDownClosingEventArgs args)
+    {
+        base.OnClosing(args);
+        if (args.Cancel || finishClose || !SystemInformation.IsMenuAnimationEnabled ||
+            (args.CloseReason != ToolStripDropDownCloseReason.ItemClicked &&
+             args.CloseReason != ToolStripDropDownCloseReason.Keyboard &&
+             args.CloseReason != ToolStripDropDownCloseReason.CloseCalled)) return;
+        args.Cancel = true;
+        if (!closing) StartFade(true);
+    }
+
+    protected override void OnClosed(ToolStripDropDownClosedEventArgs args)
+    {
+        fade.Stop();
+        closing = false;
+        base.OnClosed(args);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) fade.Dispose();
+        base.Dispose(disposing);
+    }
+}
+
+sealed class AppearanceButton : Button
+{
+    bool hover;
+
+    public AppearanceButton()
+    {
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        Cursor = Cursors.Hand;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+    }
+
+    protected override void OnMouseEnter(EventArgs args) { base.OnMouseEnter(args); hover = true; Invalidate(); }
+    protected override void OnMouseLeave(EventArgs args) { base.OnMouseLeave(args); hover = false; Invalidate(); }
+    protected override void OnGotFocus(EventArgs args) { base.OnGotFocus(args); Invalidate(); }
+    protected override void OnLostFocus(EventArgs args) { base.OnLostFocus(args); Invalidate(); }
+
+    protected override void OnPaint(PaintEventArgs args)
+    {
+        var graphics = args.Graphics;
+        graphics.Clear(Theme.Canvas);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var shape = SpeakerArt.Rounded(new Rectangle(0, 0, Width - 1, Height - 1), Math.Max(10, Height / 2)))
+        using (var fill = new SolidBrush(hover ? Theme.Highlight : Theme.Card))
+        using (var pen = new Pen(Theme.Ink, 1.35f))
+        using (var focus = new Pen(Theme.Accent))
+        {
+            graphics.FillPath(fill, shape);
+            if (Focused) graphics.DrawPath(focus, shape);
+            graphics.TranslateTransform(Width / 2f, Height / 2f);
+            graphics.ScaleTransform(Height / 30f, Height / 30f);
+            if (Theme.Dark)
+            {
+                graphics.DrawEllipse(pen, -3.5f, -3.5f, 7, 7);
+                for (int ray = 0; ray < 8; ray++)
+                {
+                    graphics.DrawLine(pen, 0, -6, 0, -8);
+                    graphics.RotateTransform(45);
+                }
+            }
+            else
+            {
+                using (var crescent = new GraphicsPath())
+                {
+                    crescent.AddBezier(2, -7, -7, -8, -10, 4, -2, 7);
+                    crescent.AddBezier(-2, 7, 2, 9, 6, 6, 7, 3);
+                    crescent.AddBezier(7, 3, 0, 5, -3, -2, 2, -7);
+                    crescent.CloseFigure();
+                    graphics.DrawPath(pen, crescent);
+                }
+            }
+        }
+    }
+}
+
+sealed class AppBadge : Control
+{
+    readonly Bitmap icon;
+
+    public AppBadge(Bitmap icon)
+    {
+        this.icon = icon;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        TabStop = false;
+    }
+
+    protected override void OnPaint(PaintEventArgs args)
+    {
+        var graphics = args.Graphics;
+        graphics.Clear(Theme.Card);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        if (icon != null)
+        {
+            graphics.DrawImage(icon, new Rectangle(1, 1, Width - 2, Height - 2));
+            return;
+        }
+
+        float unit = Width / 24f;
+        using (var red = new SolidBrush(Color.FromArgb(218, 49, 76)))
+        using (var white = new Pen(Color.White, 1.6f * unit))
+        {
+            graphics.FillEllipse(red, 2 * unit, 2 * unit, 20 * unit, 20 * unit);
+            graphics.DrawLines(white, new[] { new PointF(11 * unit, 16 * unit), new PointF(11 * unit, 8 * unit), new PointF(16 * unit, 9 * unit) });
+            graphics.DrawEllipse(white, 8 * unit, 14 * unit, 3 * unit, 3 * unit);
         }
     }
 }
