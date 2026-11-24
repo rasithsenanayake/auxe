@@ -1,65 +1,65 @@
-# Auxe
+# Auxe per-app audio router for Windows 11
 
-**Pick where each app plays.** Auxe is a lightweight Windows 11 tray app by Web X Agency. Send Discord to your headset, Chrome to your monitor, and YouTube Music to your speakers from one panel.
+**Choose a different audio output for each app.** Auxe is a lightweight system tray app for Windows 11. Send Discord to your headset, Chrome to your monitor speakers, and YouTube Music to a separate device. You can also adjust the Windows volume of each connected playback device.
 
-**[Download AuxeSetup.exe](https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe)**
+**[Download AuxeSetup.exe for Windows 11 x64](https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe)**
 
-[Product website](https://rasithsenanayake.github.io/auxe/) | [Download from Releases](https://github.com/rasithsenanayake/auxe/releases/latest) | [Installer in this repo](AuxeSetup.exe)
+Visit the [Auxe website](https://rasithsenanayake.github.io/auxe/) or see the [release notes](https://github.com/rasithsenanayake/auxe/releases). The [installer in this repo](AuxeSetup.exe) is included when you clone the repo or download its ZIP.
 
-## A closer look
+![Auxe Windows 11 tray with separate audio outputs for Chrome, Discord, WhatsApp, and YouTube Music](docs/assets/app-outputs.png)
 
-| Dark by default | Light appearance |
-| --- | --- |
-| ![Auxe dark tray with different outputs for Discord, Chrome, WhatsApp, and YouTube Music](screenshots/app-outputs.png) | ![The same Auxe tray in light mode](screenshots/light-mode.png) |
+## Install Auxe
+
+1. Run **AuxeSetup.exe**, then click **Install Auxe**.
+2. Start audio in an app. Click the speaker icon near the Windows clock. If it is hidden, open the tray overflow arrow.
+3. Pick an output device next to the app. Use **System default** to clear its route.
+
+Auxe is built for Windows 11 x64. The installer is unsigned. If an older copy is running, quit it from the tray before running Setup.
+
+![Windows installer with the Install Auxe button](docs/assets/setup.png)
+
+## Switch audio output by app
+
+The tray lists apps that have opened an audio session, including desktop apps such as Discord and WhatsApp. Some apps keep their existing stream on the old device after you switch outputs. If Auxe says **Restart playback to apply**, restart playback or rejoin the call. If the app has its own output setting, set it to its default so it can follow Windows routing.
+
+## Control volume for each playback device
+
+Click the **speaker button** at the top of Auxe to open Device Volume. Set the level for your headset, speakers, monitor, or other connected output. Each slider controls that device's Windows volume. Click the speaker again to return to app routing.
+
+![Auxe with individual volume sliders for a headset, monitor speakers, and external speakers](docs/assets/device-volume.png)
+
+## Route Chrome tabs and YouTube Music
+
+The optional Auxe Companion adds per-tab audio routing and can show the installed YouTube Music app separately from the browser.
+
+1. Open `chrome://extensions` and turn on **Developer mode**.
+2. Click **Load unpacked** and select `%LOCALAPPDATA%\Programs\Auxe\chrome`. If the companion is already installed, click **Reload** after updating Auxe.
+3. Start playback in the tab or YouTube Music window using the same Chrome profile. Press **Ctrl+Shift+U**, then choose the output in Auxe. You can also right-click in YouTube Music and select **Toggle Auxe output for YouTube Music**.
+
+Expand the Chrome row to see individual tabs. If the device picker only lists the default output, use **Allow device access** in the companion's options. Chrome may request microphone permission to expose playback devices. Auxe immediately stops the permission-check stream.
 
 <details>
-<summary>See individual Chrome tab outputs</summary>
+<summary>See Chrome tab routing</summary>
 
-![The expanded Chrome row with separate output choices for two tabs](screenshots/chrome-tabs.png)
+![Auxe with two Chrome tabs routed to different playback devices](docs/assets/chrome-tabs.png)
 
 </details>
 
-Screenshots show Auxe with sample apps and devices.
+## Appearance, startup, and updates
 
-## Install
+Use the sun or moon icon to switch between dark and light appearance. Open the Settings gear to manage **Start with Windows**, automatic updates, or the Chrome companion.
 
-1. Double-click **AuxeSetup.exe** on Windows 11 x64, then choose **Install Auxe**. The installer is also at the top level of this repo for people who clone it or download the ZIP.
-2. Start playback in an app. Click the dancing speaker next to the clock or under the tray's **^** arrow, then select an output.
-3. Use the sun or moon button beside the **Settings** gear to switch appearance. The tick beside **Start with Windows** shows that it is on. Settings also holds update controls and Chrome companion setup.
-
-If you already have an older build running, exit it from the tray before running Setup. The installer is unsigned.
-
-| Install | Uninstall |
-| --- | --- |
-| ![Auxe Setup with the Install Auxe button](screenshots/setup.png) | ![Auxe uninstall confirmation](screenshots/uninstall.png) |
-
-To remove Auxe, go to **Windows Settings**, then **Apps**, **Installed apps**, and **Uninstall** on the Auxe row. If you enabled the optional Chrome companion, remove it from Chrome separately.
-
-![Auxe Settings menu with Start with Windows checked](screenshots/settings.png)
-
-## Device volume
-
-Click the speaker button at the top of Auxe to adjust each connected output device. The sliders change the Windows volume for that device. Click the speaker again to return to app routing.
-
-![Auxe showing volume sliders for three playback devices](screenshots/device-volume.png)
-
-## Audio routing
-
-- **Windows apps.** Choose **System default** to clear a route. Auxe shows when a saved route is waiting for playback to move. Some apps need you to restart playback, rejoin the call, or select their default output in the app's own settings.
-- **Chrome tabs and YouTube Music.** In `chrome://extensions`, enable **Developer mode** and load `%LOCALAPPDATA%\Programs\Auxe\chrome` as an unpacked extension. If the companion was already installed, click **Reload** on its card after updating Auxe. Open YouTube Music in the same Chrome profile as the companion. Its installed app window appears separately once the companion detects it. Press **Ctrl+Shift+U** in a source, or right-click inside YouTube Music and choose **Toggle Auxe output for YouTube Music**, then choose an output in Auxe. Expand the Chrome row for individual browser tabs.
-
-If Chrome only shows the default output, open the companion's options and choose **Allow device access**. Chrome may ask for microphone permission to expose playback devices. Auxe immediately stops the permission-check stream.
-
-## Updates
-
-Automatic updates are on by default for installed copies. Auxe checks GitHub Releases for a newer installer, verifies its SHA-256 digest, and installs it after the tray panel is closed and Chrome tab routing is idle. In **Settings**, choose **Check for updates** to download manually, then **Install update**. You can turn automatic checks off there too. Older Auxe builds need this installer once to receive future updates.
+Automatic updates are enabled by default. Auxe verifies the GitHub release's SHA-256 digest and applies updates while the tray panel is closed and Chrome tab routing is idle. To update manually, choose **Check for updates**, then **Install update** when one is ready.
 
 ## Privacy
 
-**Audio stays on your PC.** Auxe has no account, backend, analytics, or telemetry. It does not collect or upload audio, app names, tab titles, device names, or usage data. Windows stores app routing preferences locally. The optional Chrome companion plays tab audio locally and passes source and device information to the tray over a local connection.
+Audio stays on your PC. Auxe has no account, backend, analytics, or telemetry. It does not upload audio, app names, tab titles, device names, or usage data. Windows stores routing preferences locally, and the optional Chrome companion exchanges routing information with Auxe over a local connection.
 
-Update checks contact GitHub over HTTPS to read release metadata and download the installer. GitHub receives the usual connection information, such as your IP address. Turn off automatic updates in Auxe for offline use.
+Update checks contact GitHub over HTTPS for release information and installers. GitHub receives ordinary connection information such as your IP address. Turn off automatic updates in Settings if you want offline use.
 
-## Build from source
+## Uninstall or build from source
 
-Run `.\build.ps1` in PowerShell. It builds `bin\Auxe.exe` and `bin\AuxeSetup.exe` using the .NET Framework compiler included with Windows. Geist and Poppins are bundled under their SIL Open Font Licenses in [assets](assets/).
+- **Uninstall:** Open **Windows Settings**, then **Apps**, **Installed apps**, and **Uninstall** on the Auxe row. Remove the optional companion from Chrome separately.
+- **Build:** Run `.\build.ps1` in PowerShell. It uses the .NET Framework compiler on Windows and produces `bin\Auxe.exe` and `bin\AuxeSetup.exe`. Font licenses are in [assets](assets/).
+
+Auxe is made by **Web X Agency**.
