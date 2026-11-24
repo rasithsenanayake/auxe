@@ -1,0 +1,138 @@
+:root { --tray-preview-ready: 1; }
+
+.gallery > figure { display: grid; grid-template-rows: 1fr auto; min-width: 0; }
+.gallery .frame[data-demo] { padding: clamp(13px, 3vw, 34px); }
+
+.demo-panel {
+  --tray: #0f0f0f;
+  --row: #191919;
+  --control: #202020;
+  --edge: #404040;
+  --text: #f4f4f4;
+  --muted-text: #bebebe;
+  width: min(100%, 466px);
+  min-width: 0;
+  padding: 16px 20px 38px;
+  border-radius: 20px;
+  background: var(--tray);
+  color: var(--text);
+  color-scheme: dark;
+  box-shadow: 0 20px 40px #0005;
+  font: 13.5px/1.25 var(--body);
+}
+.demo-panel.demo-light {
+  --tray: #f6f6f4;
+  --row: #fff;
+  --control: #f0f1f4;
+  --edge: #cccdd1;
+  --text: #23252a;
+  --muted-text: #535763;
+  color-scheme: light;
+}
+.demo-panel [hidden] { display: none; }
+.demo-heading { display: flex; align-items: center; gap: 9px; padding-bottom: 13px; }
+.demo-heading strong { min-width: 0; font: 600 clamp(16px, 2vw, 26px)/1.1 var(--display); letter-spacing: -.045em; }
+.demo-logo, .demo-app-icon, .demo-header-button {
+  display: block;
+  flex: 0 0 auto;
+  background-image: url("assets/app-outputs.png");
+  background-repeat: no-repeat;
+}
+.demo-logo { width: 36px; height: 36px; border-radius: 8px; background-position: -20px -16px; }
+.demo-toolbar { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.demo-header-button {
+  display: block;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.demo-speaker { background-position: -334px -19px; }
+.demo-theme { background-position: -374px -19px; }
+.demo-gear { background-position: -414px -19px; list-style: none; }
+.demo-gear::-webkit-details-marker { display: none; }
+.demo-light .demo-header-button { filter: invert(.85); }
+.demo-light .demo-theme::after {
+  content: "";
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-shadow: -3px 2px 0 1px #fff;
+  margin: -1px 0 0 3px;
+}
+.demo-light .demo-theme { background-color: #191919; background-image: none; }
+.demo-toolbar button:hover, .demo-gear:hover { filter: brightness(1.24); }
+.demo-light .demo-toolbar button:hover, .demo-light .demo-gear:hover { filter: invert(.85) brightness(.93); }
+.demo-speaker[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--muted-text); }
+.demo-settings { position: relative; padding: 0; border: 0; }
+.demo-menu {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: var(--control);
+  box-shadow: 0 10px 24px #0005;
+}
+.demo-menu label, .demo-menu a { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 5px; font-size: 13px; }
+.demo-menu label:hover, .demo-menu a:hover { background: var(--row); }
+.demo-menu input { margin: 0; accent-color: var(--muted-text); }
+.demo-menu a { text-decoration: none; }
+.demo-rows, .demo-tab-list { display: grid; gap: 6px; }
+.demo-row, .demo-level { min-height: 60px; padding: 9px 10px; border-radius: 9px; background: var(--row); }
+.demo-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) minmax(0, 46%); gap: 10px; align-items: center; }
+.demo-row.includes-tabs { grid-template-columns: 24px minmax(0, 1fr) minmax(0, calc(46% - 30px)) 23px; gap: 8px; }
+.demo-identity { min-width: 0; }
+.demo-identity strong, .demo-identity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.demo-identity strong, .demo-level label { font: 600 12px/1.35 var(--display); }
+.demo-identity small { color: var(--muted-text); font-size: 13px; margin-top: 1px; }
+.demo-app-icon { width: 24px; height: 24px; }
+.icon-chrome { background-position: -33px -84px; clip-path: circle(11px at center); }
+.icon-discord { background-position: -33px -150px; clip-path: circle(11px at center); }
+.icon-whatsapp { background-position: -33px -216px; clip-path: inset(1px round 4px); }
+.icon-music { background-position: -33px -282px; clip-path: circle(11px at center); }
+.icon-tab { width: 15px; height: 12px; margin-inline: auto; border: 1px solid var(--muted-text); border-radius: 3px; background: none; }
+.icon-tab::before { content: ""; display: block; margin-top: 2px; border-top: 1px solid var(--muted-text); }
+.demo-select { position: relative; min-width: 0; }
+.demo-select::after, .demo-expand::after {
+  content: ""; position: absolute; top: 50%; width: 6px; height: 6px;
+  border-inline-end: 1px solid var(--muted-text); border-bottom: 1px solid var(--muted-text);
+  transform: translateY(-65%) rotate(45deg); pointer-events: none;
+}
+.demo-select::after { right: 12px; }
+.demo-expand::after { right: 9px; }
+.demo-expand[aria-expanded="true"]::after { transform: translateY(-25%) rotate(225deg); }
+.demo-select select {
+  appearance: none; width: 100%; min-width: 0; height: 36px; padding: 0 25px 0 11px;
+  border: 1px solid var(--edge); border-radius: 8px; background: var(--control); color: var(--text);
+  font: 13px var(--body); text-overflow: ellipsis; cursor: pointer;
+}
+.demo-expand { position: relative; width: 24px; height: 30px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.demo-expand:hover, .demo-expand[aria-expanded="true"] { background: var(--control); }
+.demo-panel :is(button, input, select, summary, a):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.demo-level { padding-inline: 14px; }
+.demo-level > div { display: grid; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; gap: 12px; }
+.demo-level input { width: 100%; margin: 5px 0 0; accent-color: var(--text); cursor: pointer; }
+.demo-level output { color: var(--muted-text); text-align: right; font-variant-numeric: tabular-nums; }
+.volume-preview [data-demo] { margin-block: 15px 3px; }
+
+@media (max-width: 480px) {
+  .demo-panel { padding: 11px 10px 25px; }
+  .demo-toolbar { gap: 3px; }
+  .demo-heading { gap: 5px; }
+  .demo-logo { transform: scale(.8); }
+  .demo-header-button { transform: scale(.88); }
+  .demo-row { gap: 6px; padding-inline: 6px; }
+  .demo-row.includes-tabs { gap: 4px; }
+  .demo-select select { padding-left: 6px; font-size: 12px; }
+  .demo-identity small { font-size: 11px; }
+}
