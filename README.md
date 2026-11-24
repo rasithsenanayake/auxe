@@ -4,7 +4,7 @@
 
 **[Download AuxeSetup.exe for Windows 11 x64](https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe)**
 
-Visit the [Auxe website](https://rasithsenanayake.github.io/auxe/) or see the [release notes](https://github.com/rasithsenanayake/auxe/releases). The [installer in this repo](AuxeSetup.exe) is included when you clone the repo or download its ZIP.
+Visit the [Auxe website](https://rasithsenanayake.github.io/auxe/) or see the [release notes](https://github.com/rasithsenanayake/auxe/releases).
 
 ![Auxe Windows 11 tray with separate audio outputs for Chrome, Discord, WhatsApp, and YouTube Music](docs/assets/app-outputs.png)
 
@@ -60,6 +60,6 @@ Update checks contact GitHub over HTTPS for release information and installers. 
 ## Uninstall or build from source
 
 - **Uninstall:** Open **Windows Settings**, then **Apps**, **Installed apps**, and **Uninstall** on the Auxe row. Remove the optional companion from Chrome separately.
-- **Build:** Run `.\build.ps1` in PowerShell. It uses the .NET Framework compiler on Windows and produces `bin\Auxe.exe` and `bin\AuxeSetup.exe`. Font licenses are in [assets](assets/).
+- **Build:** Run `.\build.ps1` in PowerShell. It compiles the [Windows source](src/) with the .NET Framework compiler and produces `bin\Auxe.exe` and `bin\AuxeSetup.exe`. Font licenses are in [assets](assets/).
 
 Auxe is made by **Web X Agency**.
