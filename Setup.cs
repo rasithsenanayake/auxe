@@ -25,8 +25,8 @@ static class Setup
         bool confirmed = false;
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(true);
-        using (var icon = SpeakerArt.Draw(0))
-        using (var logo = icon.ToBitmap())
+        using (var icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath))
+        using (var logo = SpeakerArt.DrawInstaller(40))
         using (var bodyFont = Typography.Text(10.5f))
         using (var actionFont = Typography.Heading(10))
         using (var titleFont = Typography.Heading(22))
@@ -89,7 +89,7 @@ static class Setup
                 }
                 catch (Exception error)
                 {
-                    description.Text = "Setup couldn’t finish. Quit Auxe from the tray, then try again.";
+                    description.Text = "Setup could not finish. Quit Auxe from the tray, then try again.";
                     MessageBox.Show(window, error.Message, "Auxe Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     cancel.Enabled = true;
                 }
@@ -160,7 +160,7 @@ static class Setup
         using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             key.SetValue("DisplayName", "Auxe");
-            key.SetValue("DisplayVersion", "0.1.6");
+            key.SetValue("DisplayVersion", "0.1.7");
             key.SetValue("Publisher", "Web X Agency");
             key.SetValue("DisplayIcon", exe);
             key.SetValue("InstallLocation", root);

@@ -69,7 +69,7 @@ navigator.mediaDevices.addEventListener("devicechange", () => serialize(async ()
       try {
         await route.context.setSinkId("");
         route.selected = null;
-        route.status = "Output disconnected · using Chrome default";
+        route.status = "Output disconnected. Using Chrome default.";
       } catch {
         stop(id); // Restores ordinary tab playback.
       }

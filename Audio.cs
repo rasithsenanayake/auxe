@@ -8,6 +8,7 @@ sealed class Output
 {
     public string Id { get; set; }
     public string Name { get; set; }
+    public int? Volume { get; set; }
     public override string ToString() { return Name; }
 }
 
@@ -32,6 +33,64 @@ sealed class Audio : IDisposable
     readonly Dictionary<string, SessionWatch> watchers = new Dictionary<string, SessionWatch>();
 
     static void Release(object value) { if (value != null) Marshal.ReleaseComObject(value); }
+
+    public List<Output> ReadVolumes()
+    {
+        var outputs = new List<Output>();
+        IDeviceList list = null;
+        try
+        {
+            devices.EnumAudioEndpoints(0, 1, out list);
+            uint count;
+            list.GetCount(out count);
+            for (uint index = 0; index < count; index++)
+            {
+                IDevice device = null;
+                try
+                {
+                    list.Item(index, out device);
+                    string id;
+                    device.GetId(out id);
+                    var output = new Output { Id = id, Name = FriendlyName(device, id) };
+                    try { output.Volume = EndpointVolume(device, null); }
+                    catch (COMException) { }
+                    outputs.Add(output);
+                }
+                catch (COMException) { } // A device disconnected during enumeration.
+                finally { Release(device); }
+            }
+        }
+        finally { Release(list); }
+        return outputs.OrderBy(output => output.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    public void SetVolume(string id, int level)
+    {
+        if (level < 0 || level > 100) throw new ArgumentOutOfRangeException("level");
+        IDevice device = null;
+        try
+        {
+            devices.GetDevice(id, out device);
+            EndpointVolume(device, level);
+        }
+        finally { Release(device); }
+    }
+
+    static int EndpointVolume(IDevice device, int? level)
+    {
+        object result = null;
+        try
+        {
+            var iid = typeof(IEndpointVolume).GUID;
+            device.Activate(ref iid, 1, IntPtr.Zero, out result);
+            var volume = (IEndpointVolume)result;
+            if (level.HasValue) volume.SetMasterVolumeLevelScalar(level.Value / 100f, IntPtr.Zero);
+            float actual;
+            volume.GetMasterVolumeLevelScalar(out actual);
+            return Math.Min(100, Math.Max(0, (int)Math.Round(actual * 100)));
+        }
+        finally { Release(result); }
+    }
 
     public List<Output> Read(out List<AudioApp> apps, bool watch = false)
     {
@@ -348,6 +407,7 @@ sealed class Audio : IDisposable
 
     public void Dispose()
     {
+        foreach (var watcher in watchers.Values) watcher.Dispose();
         foreach (var meter in meters) Release(meter);
         Release(policy);
         Release(devices);
@@ -367,7 +427,12 @@ sealed class Audio : IDisposable
     }
 
     [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IDevices { void EnumAudioEndpoints(int flow, uint state, out IDeviceList list); }
+    interface IDevices
+    {
+        void EnumAudioEndpoints(int flow, uint state, out IDeviceList list);
+        void GetDefaultAudioEndpoint();
+        void GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IDevice device);
+    }
     [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IDeviceList { void GetCount(out uint count); void Item(uint index, out IDevice device); }
     [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -415,6 +480,17 @@ sealed class Audio : IDisposable
     }
     [ComImport, Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IMeter { void GetPeakValue(out float value); }
+    [ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IEndpointVolume
+    {
+        void RegisterControlChangeNotify();
+        void UnregisterControlChangeNotify();
+        void GetChannelCount();
+        void SetMasterVolumeLevel();
+        void SetMasterVolumeLevelScalar(float level, IntPtr context);
+        void GetMasterVolumeLevel();
+        void GetMasterVolumeLevelScalar(out float level);
+    }
 
     // Windows 11 IInspectable ABI. The preceding slots are never invoked.
     [ComImport, Guid("AB3D4648-E242-459F-B02F-541C70306324"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

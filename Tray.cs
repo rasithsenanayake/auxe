@@ -43,8 +43,9 @@ sealed class Tray : ApplicationContext
     readonly Form panel = new Form();
     readonly Label heading = new CrispLabel();
     readonly PictureBox mark = new PictureBox();
-    readonly HeaderButton settings = new HeaderButton(true);
-    readonly HeaderButton appearance = new HeaderButton(false);
+    readonly HeaderButton settings = new HeaderButton(HeaderIcon.Settings);
+    readonly HeaderButton appearance = new HeaderButton(HeaderIcon.Appearance);
+    readonly HeaderButton volumes = new HeaderButton(HeaderIcon.Volume);
     readonly ToolTip hints = new ToolTip();
     readonly Timer panelFade = new Timer { Interval = 15 };
     readonly Stopwatch panelClock = new Stopwatch();
@@ -62,7 +63,9 @@ sealed class Tray : ApplicationContext
     bool checkingUpdate;
     string readyUpdate;
     readonly Font rowFont = Typography.Heading(10);
-    readonly Font detailFont = Typography.Text(9.25f);
+    readonly Font detailFont = Typography.Text(10);
+    bool volumeView;
+    int volumeRevision;
     readonly Label status = new CrispLabel();
     readonly FlowLayoutPanel rows = new FlowLayoutPanel();
     readonly Dictionary<string, Tuple<string, long>> requested = new Dictionary<string, Tuple<string, long>>();
@@ -137,6 +140,22 @@ sealed class Tray : ApplicationContext
         settingsMenu.Font = bodyFont;
         settingsMenu.Items.Add(startupItem);
         appearance.Bounds = new Rectangle(374, 19, 32, 30);
+        volumes.Bounds = new Rectangle(334, 19, 32, 30);
+        volumes.AccessibleName = "Device volume";
+        hints.SetToolTip(volumes, volumes.AccessibleName);
+        volumes.Click += (sender, args) =>
+        {
+            volumeView = !volumeView;
+            volumes.Selected = volumeView;
+            volumes.AccessibleName = volumeView ? "Back to app routing" : "Device volume";
+            hints.SetToolTip(volumes, volumes.AccessibleName);
+            heading.Text = volumeView ? "Device volume" : "Auxe";
+            status.Text = "";
+            signature = null;
+            ClearRows();
+            SizePanel(1);
+            BeginRefresh();
+        };
         settingsMenu.Items.Add(updatesItem);
         settingsMenu.Items.Add(downloadItem);
         settingsMenu.Items.Add(companionItem);
@@ -188,7 +207,7 @@ sealed class Tray : ApplicationContext
         };
         settings.Click += (sender, args) =>
             settingsMenu.ShowAnimated(settings);
-        panel.Controls.AddRange(new Control[] { mark, heading, rows, status, settings, appearance });
+        panel.Controls.AddRange(new Control[] { mark, heading, rows, status, settings, appearance, volumes });
         if (displayScale != 1) panel.Scale(new SizeF(displayScale, displayScale));
         using (var shape = SpeakerArt.Rounded(mark.ClientRectangle, Px(18))) mark.Region = new Region(shape);
         using (var shape = SpeakerArt.Rounded(settings.ClientRectangle, Px(16))) settings.Region = new Region(shape);
@@ -213,7 +232,7 @@ sealed class Tray : ApplicationContext
         if (readyUpdate == null)
         {
             checkingUpdate = true;
-            if (manual) SetStatus("Checking for updates…");
+            if (manual) SetStatus("Checking for updates");
             updateTimer.Interval = 12 * 60 * 60 * 1000;
             try
             {
@@ -221,7 +240,7 @@ sealed class Tray : ApplicationContext
                 var installer = await Task.Run(() => Updates.Download(version));
                 if (disposed) return;
                 readyUpdate = installer;
-                if (manual) SetStatus(installer == null ? "You’re up to date." : "Update ready. Open Settings to install.");
+                if (manual) SetStatus(installer == null ? "Auxe is up to date." : "Update ready. Open Settings to install.");
             }
             catch (Exception error)
             {
@@ -263,7 +282,7 @@ sealed class Tray : ApplicationContext
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            if (manual) SetStatus("Couldn’t open the installer. Try again.");
+            if (manual) SetStatus("Could not open the installer. Try again.");
             else updateTimer.Interval = 60 * 60 * 1000;
         }
     }
@@ -328,6 +347,7 @@ sealed class Tray : ApplicationContext
         status.ForeColor = Theme.Muted;
         settings.BackColor = Theme.Card;
         settings.Invalidate();
+        volumes.Invalidate();
         startupItem.ForeColor = updatesItem.ForeColor = downloadItem.ForeColor = companionItem.ForeColor = Theme.Ink;
         appearance.AccessibleName = Theme.Dark ? "Switch to Light appearance" : "Switch to Dark appearance";
         hints.SetToolTip(appearance, appearance.AccessibleName);
@@ -356,6 +376,10 @@ sealed class Tray : ApplicationContext
     {
         if (panel.Visible && !panelClosing)
         {
+            panelClosing = true;
+            settingsMenu.Close();
+            foreach (var picker in rows.Controls.OfType<Panel>().SelectMany(row => row.Controls.OfType<OutputPicker>()))
+                picker.Dismiss();
             EndAppearance();
             AnimatePanel(true);
         }
@@ -437,6 +461,8 @@ sealed class Tray : ApplicationContext
     {
         if (disposed || panelClosing || refreshing || routing || PickerOpen() || settingsMenu.Visible) return;
         refreshing = true;
+        bool readVolumes = volumeView;
+        int revision = volumeRevision;
         try
         {
             var snapshot = await Task.Run(() =>
@@ -445,6 +471,8 @@ sealed class Tray : ApplicationContext
                 {
                     if (disposed) return null;
                     var core = routingAudio ?? (routingAudio = new Audio());
+                    if (readVolumes)
+                        return Tuple.Create((List<AudioApp>)null, core.ReadVolumes(), (Dictionary<string, string>)null);
                     List<AudioApp> apps;
                     var outputs = core.Read(out apps, true);
                     var preferences = new Dictionary<string, string>();
@@ -456,15 +484,91 @@ sealed class Tray : ApplicationContext
                     return Tuple.Create(apps, outputs, preferences);
                 }
             });
-            if (snapshot == null || disposed || !panel.Visible || panelClosing || routing || PickerOpen() || settingsMenu.Visible) return;
+            if (snapshot == null || disposed || !panel.Visible || panelClosing || routing || PickerOpen() || settingsMenu.Visible ||
+                readVolumes != volumeView || (readVolumes && revision != volumeRevision)) return;
             if (nativeAudioUnavailable) { nativeAudioUnavailable = false; status.Text = ""; }
-            RenderRows(snapshot.Item1, snapshot.Item2, snapshot.Item3);
+            if (readVolumes) RenderVolumes(snapshot.Item2);
+            else RenderRows(snapshot.Item1, snapshot.Item2, snapshot.Item3);
         }
         catch (COMException)
         {
-            if (!disposed) { status.Text = "Can’t connect to Windows audio."; nativeAudioUnavailable = true; }
+            if (!disposed) { status.Text = "Could not connect to Windows audio."; nativeAudioUnavailable = true; }
         }
         finally { refreshing = false; }
+    }
+
+    void ClearRows()
+    {
+        while (rows.Controls.Count != 0) rows.Controls[0].Dispose();
+    }
+
+    void RenderVolumes(List<Output> outputs)
+    {
+        string next = string.Join("|", outputs.Select(output => output.Id + ":" + output.Name + ":" + output.Volume.HasValue));
+        if (next == signature)
+        {
+            var levels = outputs.Where(output => output.Volume.HasValue)
+                .ToDictionary(output => output.Id, output => output.Volume.Value);
+            foreach (var slider in rows.Controls.OfType<Panel>().SelectMany(row => row.Controls.OfType<VolumeSlider>()))
+                slider.ReadLevel(levels[(string)slider.Tag]);
+            return;
+        }
+
+        signature = next;
+        int scroll = -rows.AutoScrollPosition.Y;
+        rows.SuspendLayout();
+        try
+        {
+            ClearRows();
+            foreach (var output in outputs)
+            {
+                if (!output.Volume.HasValue)
+                {
+                    AddRow(output.Name, "Volume unavailable", null, null, null, false);
+                    continue;
+                }
+                var row = new Panel { Width = 409, Height = 60, Margin = new Padding(0, 0, 0, 6), BackColor = Theme.Card };
+                var title = new CrispLabel { Text = output.Name, UseMnemonic = false, AutoEllipsis = true,
+                    Font = rowFont, Bounds = new Rectangle(14, 7, 321, 23) };
+                hints.SetToolTip(title, output.Name);
+                var slider = new VolumeSlider(output.Volume.Value, level => ChangeVolume(output.Id, level))
+                {
+                    AccessibleName = output.Name + " volume",
+                    Tag = output.Id, Font = detailFont, Bounds = new Rectangle(14, 29, 381, 26)
+                };
+                row.Controls.AddRange(new Control[] { title, slider });
+                if (displayScale != 1) row.Scale(new SizeF(displayScale, displayScale));
+                using (var clip = SpeakerArt.Rounded(row.ClientRectangle, Px(20))) row.Region = new Region(clip);
+                rows.Controls.Add(row);
+            }
+            if (rows.Controls.Count == 0) AddRow("No output devices", "Connect a speaker or headset.", null, null, null, false);
+            SizePanel(rows.Controls.Count);
+        }
+        finally { rows.ResumeLayout(true); }
+        rows.AutoScrollPosition = new Point(0, scroll);
+    }
+
+    async Task ChangeVolume(string id, int level)
+    {
+        volumeRevision++;
+        try
+        {
+            await Task.Run(() =>
+            {
+                lock (audioLock)
+                {
+                    if (disposed) return;
+                    var core = routingAudio ?? (routingAudio = new Audio());
+                    core.SetVolume(id, level);
+                }
+            });
+            if (!disposed && volumeView) status.Text = "";
+        }
+        catch (COMException)
+        {
+            if (!disposed && volumeView) status.Text = "Could not change the device volume.";
+        }
+        finally { volumeRevision++; }
     }
 
     void RenderRows(List<AudioApp> apps, List<Output> outputs, Dictionary<string, string> preferences)
@@ -490,7 +594,7 @@ sealed class Tray : ApplicationContext
         rows.SuspendLayout();
         try
         {
-            while (rows.Controls.Count != 0) rows.Controls[0].Dispose();
+            ClearRows();
             var activeKeys = new HashSet<string>(apps.Select(app => app.Key), StringComparer.OrdinalIgnoreCase);
             foreach (var old in appIcons.Keys.Where(key => !activeKeys.Contains(key)).ToArray())
             {
@@ -506,18 +610,18 @@ sealed class Tray : ApplicationContext
                 var outputsInUse = app.Active ? app.ActiveOutputs : app.Outputs;
                 string id = outputsInUse.Count == 1 ? outputsInUse.First() : null;
                 var actual = outputs.FirstOrDefault(output => output.Id == id);
-                string subtitle = actual != null && id != null ? actual.Name : "Multiple outputs";
+                string subtitle = actual != null && id != null ? ShortOutput(actual, outputs) : "Multiple outputs";
                 Tuple<string, long> pending;
                 if (requested.TryGetValue(app.Key, out pending))
                 {
                     subtitle = Stopwatch.GetTimestamp() < pending.Item2
-                            ? "Switching output…" : "Restart playback to apply";
+                            ? "Switching output" : "Restart playback to apply";
                 }
                 string preference;
                 if (!preferences.TryGetValue(app.Key, out preference)) preference = id;
                 bool chromeOverrides = isChrome && chrome.Any(source => source.Enabled);
                 AddRow(app.Name, subtitle, outputs, preference, selected => ChangeWindowsOutput(app.Key, selected.Id, chromeOverrides),
-                    isChrome && chrome.Any(source => !source.Standalone), AppIcon(app.Key));
+                    isChrome && chrome.Any(source => !source.Standalone), AppIcon(app.Key), subtitleHint: actual == null ? null : actual.Name);
                 if (isChrome && expanded) AddChromeRows(chrome.Where(source => !source.Standalone), true);
             }
             if (!chromeShown && chrome.Any(source => !source.Standalone))
@@ -541,6 +645,28 @@ sealed class Tray : ApplicationContext
         }
         rows.AutoScrollPosition = new Point(0, scroll);
 
+    }
+
+    static string ShortOutput(Output output, List<Output> outputs)
+    {
+        var label = DeviceLabel(output.Name);
+        return outputs.Count(other => string.Equals(label, DeviceLabel(other.Name), StringComparison.CurrentCultureIgnoreCase)) == 1
+            ? label : output.Name;
+    }
+
+    static string DeviceLabel(string name)
+    {
+        int suffix = name.IndexOf(" (", StringComparison.Ordinal);
+        if (suffix < 0 || !name.EndsWith(")", StringComparison.Ordinal)) return name;
+        var prefix = name.Substring(0, suffix);
+        if (prefix.Equals("Speakers", StringComparison.OrdinalIgnoreCase) ||
+            prefix.Equals("Headphones", StringComparison.OrdinalIgnoreCase) ||
+            prefix.Equals("Headset", StringComparison.OrdinalIgnoreCase))
+        {
+            var hardware = name.Substring(suffix + 2, name.Length - suffix - 3);
+            return System.Text.RegularExpressions.Regex.Replace(hardware, @"^\d+[-–]\s*", "");
+        }
+        return prefix;
     }
 
     async Task<bool> ChangeWindowsOutput(string key, string output, bool chromeOverrides)
@@ -648,7 +774,7 @@ sealed class Tray : ApplicationContext
     }
 
     void AddRow(string name, string subtitle, List<Output> outputs, string selected, Func<Output, Task<bool>> change,
-        bool expander, Bitmap appIcon = null, bool music = false)
+        bool expander, Bitmap appIcon = null, bool music = false, string subtitleHint = null)
     {
         var row = new Panel { Width = 409, Height = 60, Margin = new Padding(0, 0, 0, 6), BackColor = Theme.Card };
         const int textLeft = 46;
@@ -659,7 +785,7 @@ sealed class Tray : ApplicationContext
             Font = detailFont, ForeColor = Theme.Muted, Bounds = new Rectangle(textLeft, 30, textWidth, 20) };
         if (outputs != null || appIcon != null || music) row.Controls.Add(new AppBadge(appIcon, music) { Bounds = new Rectangle(13, 18, 24, 24) });
         hints.SetToolTip(title, name.Trim());
-        hints.SetToolTip(detail, subtitle);
+        hints.SetToolTip(detail, subtitleHint ?? subtitle);
         row.Controls.AddRange(new Control[] { title, detail });
         if (outputs != null)
         {
@@ -681,9 +807,11 @@ sealed class Tray : ApplicationContext
         }
         if (expander)
         {
-            var button = new Button { Text = expanded ? "⌃" : "⌄", AccessibleName = expanded ? "Collapse Chrome tabs" : "Expand Chrome tabs",
-                Bounds = new Rectangle(367, 15, 30, 28), FlatStyle = FlatStyle.Flat };
-            button.FlatAppearance.BorderSize = 0;
+            var button = new HeaderButton(HeaderIcon.Expand)
+            {
+                Selected = expanded, AccessibleName = expanded ? "Collapse Chrome tabs" : "Expand Chrome tabs",
+                Bounds = new Rectangle(367, 15, 30, 28)
+            };
             button.Click += (s, e) => { expanded = !expanded; RefreshRows(); };
             row.Controls.Add(button);
         }
@@ -726,6 +854,7 @@ ToolStripMenuItem current;
 
     public bool MenuOpen { get { return opening || menu.Visible; } }
     public bool Busy { get { return busy; } }
+    public void Dismiss() { if (menu.Visible) menu.Close(); }
 
     public OutputPicker(List<Output> outputs, string selected, Func<Output, Task<bool>> commit)
     {
@@ -819,7 +948,7 @@ ToolStripMenuItem current;
                 FormatFlags = StringFormatFlags.NoWrap
             })
             {
-                graphics.DrawString(busy ? "Switching…" : Text, Font, brush,
+                graphics.DrawString(busy ? "Switching" : Text, Font, brush,
                     new RectangleF(10 * scale, 0, Width - 33 * scale, Height), format);
             }
             float x = Width - 16 * scale;
@@ -879,42 +1008,32 @@ sealed class FadingMenu : ContextMenuStrip
 {
     readonly Timer fade = new Timer { Interval = 15 };
     readonly Stopwatch clock = new Stopwatch();
-    double fadeStart;
-    bool closing;
-    bool finishClose;
+    Control trigger;
+    long skipTriggerUntil;
 
     public FadingMenu()
     {
         fade.Tick += (sender, args) =>
         {
-            double progress = Math.Min(1, clock.Elapsed.TotalMilliseconds / (closing ? 90 : 125));
-            double ease = 1 - Math.Pow(1 - progress, 3);
-            Opacity = fadeStart + ((closing ? 0 : 1) - fadeStart) * ease;
-            if (progress < 1) return;
-            fade.Stop();
-            if (closing)
-            {
-                finishClose = true;
-                try { Close(); }
-                finally { finishClose = false; closing = false; }
-            }
+            double progress = Math.Min(1, clock.Elapsed.TotalMilliseconds / 125);
+            Opacity = 1 - 0.88 * Math.Pow(1 - progress, 3);
+            if (progress >= 1) fade.Stop();
         };
     }
 
     public void ShowAnimated(Control anchor)
     {
+        if (Visible) { Close(); return; }
+        if (trigger == anchor && Stopwatch.GetTimestamp() < skipTriggerUntil) return;
+        trigger = anchor;
         bool animate = SystemInformation.IsMenuAnimationEnabled;
         Opacity = animate ? 0.12 : 1;
         Show(anchor, new Point(anchor.Width, anchor.Height + 4), ToolStripDropDownDirection.BelowLeft);
-        if (animate && Visible) StartFade(false);
-    }
-
-    void StartFade(bool close)
-    {
-        closing = close;
-        fadeStart = Opacity;
-        clock.Restart();
-        fade.Start();
+        if (animate && Visible)
+        {
+            clock.Restart();
+            fade.Start();
+        }
     }
 
     protected override void OnSizeChanged(EventArgs args)
@@ -929,21 +1048,15 @@ sealed class FadingMenu : ContextMenuStrip
         }
     }
 
-    protected override void OnClosing(ToolStripDropDownClosingEventArgs args)
-    {
-        base.OnClosing(args);
-        if (args.Cancel || finishClose || !SystemInformation.IsMenuAnimationEnabled ||
-            (args.CloseReason != ToolStripDropDownCloseReason.ItemClicked &&
-             args.CloseReason != ToolStripDropDownCloseReason.Keyboard &&
-             args.CloseReason != ToolStripDropDownCloseReason.CloseCalled)) return;
-        args.Cancel = true;
-        if (!closing) StartFade(true);
-    }
-
     protected override void OnClosed(ToolStripDropDownClosedEventArgs args)
     {
         fade.Stop();
-        closing = false;
+        if (args.CloseReason == ToolStripDropDownCloseReason.AppClicked && trigger != null &&
+            trigger.IsHandleCreated && trigger.RectangleToScreen(trigger.ClientRectangle).Contains(Cursor.Position))
+        {
+            // Native auto-close can precede the Click event on the same button.
+            skipTriggerUntil = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 6;
+        }
         base.OnClosed(args);
     }
 
@@ -954,14 +1067,23 @@ sealed class FadingMenu : ContextMenuStrip
     }
 }
 
+enum HeaderIcon { Settings, Appearance, Volume, Expand }
+
 sealed class HeaderButton : Button
 {
-    readonly bool gear;
+    readonly HeaderIcon icon;
     bool hover;
+    bool selected;
 
-    public HeaderButton(bool gear)
+    public bool Selected
     {
-        this.gear = gear;
+        get { return selected; }
+        set { selected = value; Invalidate(); }
+    }
+
+    public HeaderButton(HeaderIcon icon)
+    {
+        this.icon = icon;
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
         Cursor = Cursors.Hand;
@@ -976,10 +1098,10 @@ sealed class HeaderButton : Button
     protected override void OnPaint(PaintEventArgs args)
     {
         var graphics = args.Graphics;
-        graphics.Clear(Theme.Canvas);
+        graphics.Clear(Parent.BackColor);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using (var shape = SpeakerArt.Rounded(new Rectangle(0, 0, Width - 1, Height - 1), Math.Max(10, Height / 2)))
-        using (var fill = new SolidBrush(hover ? Theme.Highlight : Theme.Card))
+        using (var fill = new SolidBrush(hover || selected ? Theme.Highlight : Theme.Card))
         using (var pen = new Pen(Theme.Ink, 1.35f))
         using (var focus = new Pen(Theme.Accent))
         {
@@ -987,7 +1109,19 @@ sealed class HeaderButton : Button
             if (Focused) graphics.DrawPath(focus, shape);
             graphics.TranslateTransform(Width / 2f, Height / 2f);
             graphics.ScaleTransform(Height / 30f, Height / 30f);
-            if (gear)
+            if (icon == HeaderIcon.Expand)
+            {
+                float tip = selected ? -3 : 3;
+                graphics.DrawLines(pen, new[] { new PointF(-4.5f, -tip / 2), new PointF(0, tip), new PointF(4.5f, -tip / 2) });
+            }
+            else if (icon == HeaderIcon.Volume)
+            {
+                graphics.DrawPolygon(pen, new[] { new PointF(-8, -3), new PointF(-5, -3), new PointF(-1, -7),
+                    new PointF(-1, 7), new PointF(-5, 3), new PointF(-8, 3) });
+                graphics.DrawArc(pen, -4, -5, 9, 10, -52, 104);
+                graphics.DrawArc(pen, -6, -8, 15, 16, -50, 100);
+            }
+            else if (icon == HeaderIcon.Settings)
             {
                 var teeth = new PointF[32];
                 for (int index = 0; index < teeth.Length; index++)

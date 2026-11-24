@@ -4,7 +4,7 @@
 
 **[Download AuxeSetup.exe](https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe)**
 
-[Product website](https://rasithsenanayake.github.io/auxe/) · [Download from Releases](https://github.com/rasithsenanayake/auxe/releases/latest) · [Installer in this repo](AuxeSetup.exe)
+[Product website](https://rasithsenanayake.github.io/auxe/) | [Download from Releases](https://github.com/rasithsenanayake/auxe/releases/latest) | [Installer in this repo](AuxeSetup.exe)
 
 ## A closer look
 
@@ -24,7 +24,7 @@ Screenshots show Auxe with sample apps and devices.
 ## Install
 
 1. Double-click **AuxeSetup.exe** on Windows 11 x64, then choose **Install Auxe**. The installer is also at the top level of this repo for people who clone it or download the ZIP.
-2. Start playback in an app. Click the dancing speaker next to the clock or under the tray’s **^** arrow, then select an output.
+2. Start playback in an app. Click the dancing speaker next to the clock or under the tray's **^** arrow, then select an output.
 3. Use the sun or moon button beside the **Settings** gear to switch appearance. The tick beside **Start with Windows** shows that it is on. Settings also holds update controls and Chrome companion setup.
 
 If you already have an older build running, exit it from the tray before running Setup. The installer is unsigned.
@@ -33,16 +33,22 @@ If you already have an older build running, exit it from the tray before running
 | --- | --- |
 | ![Auxe Setup with the Install Auxe button](screenshots/setup.png) | ![Auxe uninstall confirmation](screenshots/uninstall.png) |
 
-To remove Auxe, go to **Windows Settings → Apps → Installed apps → Auxe → Uninstall**. If you enabled the optional Chrome companion, remove it from Chrome separately.
+To remove Auxe, go to **Windows Settings**, then **Apps**, **Installed apps**, and **Uninstall** on the Auxe row. If you enabled the optional Chrome companion, remove it from Chrome separately.
 
 ![Auxe Settings menu with Start with Windows checked](screenshots/settings.png)
 
+## Device volume
+
+Click the speaker button at the top of Auxe to adjust each connected output device. The sliders change the Windows volume for that device. Click the speaker again to return to app routing.
+
+![Auxe showing volume sliders for three playback devices](screenshots/device-volume.png)
+
 ## Audio routing
 
-- **Windows apps.** Choose **System default** to clear a route. Auxe shows when a saved route is waiting for playback to move. Some apps need you to restart playback, rejoin the call, or select their default output in the app’s own settings.
+- **Windows apps.** Choose **System default** to clear a route. Auxe shows when a saved route is waiting for playback to move. Some apps need you to restart playback, rejoin the call, or select their default output in the app's own settings.
 - **Chrome tabs and YouTube Music.** In `chrome://extensions`, enable **Developer mode** and load `%LOCALAPPDATA%\Programs\Auxe\chrome` as an unpacked extension. If the companion was already installed, click **Reload** on its card after updating Auxe. Open YouTube Music in the same Chrome profile as the companion. Its installed app window appears separately once the companion detects it. Press **Ctrl+Shift+U** in a source, or right-click inside YouTube Music and choose **Toggle Auxe output for YouTube Music**, then choose an output in Auxe. Expand the Chrome row for individual browser tabs.
 
-If Chrome only shows the default output, open the companion’s options and choose **Allow device access**. Chrome may ask for microphone permission to expose playback devices. Auxe immediately stops the permission-check stream.
+If Chrome only shows the default output, open the companion's options and choose **Allow device access**. Chrome may ask for microphone permission to expose playback devices. Auxe immediately stops the permission-check stream.
 
 ## Updates
 
