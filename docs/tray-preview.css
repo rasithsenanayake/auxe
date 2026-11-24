@@ -1,4 +1,4 @@
-:root { --tray-preview-ready: 3; }
+:root { --tray-preview-ready: 4; }
 
 @font-face {
   font-family: "Geist Preview";
@@ -11,6 +11,7 @@
 .gallery .frame[data-demo] { padding: clamp(13px, 3vw, 34px); }
 
 .demo-panel {
+  --toolbar-row: 0px;
   --tray: #0f0f0f;
   --tray-icons: url("assets/app-outputs.png");
   --row: #191919;
@@ -29,6 +30,7 @@
   font: 500 13.5px/1.25 "Geist Preview", Geist, "Segoe UI", sans-serif;
 }
 .demo-panel.demo-light {
+  --toolbar-row: -30px;
   --tray: #f6f6f4;
   --tray-icons: url("assets/light-mode.png");
   --row: #fff;
@@ -53,14 +55,18 @@
   display: block;
   width: 32px;
   height: 30px;
+  overflow: hidden;
+  background-image: url("assets/tray-toolbar.png");
+  background-size: 96px 60px;
+  background-clip: padding-box;
   padding: 0;
   border: 0;
   border-radius: 8px;
   cursor: pointer;
 }
-.demo-speaker { background-position: -334px -19px; }
-.demo-theme { background-position: -374px -19px; }
-.demo-gear { background-position: -414px -19px; list-style: none; }
+.demo-speaker { background-position: 0 var(--toolbar-row); }
+.demo-theme { background-position: -32px var(--toolbar-row); }
+.demo-gear { background-position: -64px var(--toolbar-row); list-style: none; }
 .demo-gear::-webkit-details-marker { display: none; }
 .demo-toolbar button:hover, .demo-gear:hover { filter: brightness(1.24); }
 .demo-light .demo-toolbar button:hover, .demo-light .demo-gear:hover { filter: brightness(.94); }
@@ -112,11 +118,12 @@
 .demo-select select {
   appearance: none; width: 100%; min-width: 0; height: 36px; padding: 0 25px 0 11px;
   border: 1px solid var(--edge); border-radius: 8px; background: var(--control); color: var(--text);
-  font: inherit; font-size: 13px; text-overflow: ellipsis; cursor: pointer;
+  font: inherit; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
 .demo-expand { position: relative; width: 24px; height: 30px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .demo-expand:hover, .demo-expand[aria-expanded="true"] { background: var(--control); }
 .demo-panel :is(button, input, select, summary, a):focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.demo-panel .demo-header-button:focus-visible { outline-offset: -2px; }
 .demo-level { padding-inline: 14px; }
 .demo-level > div { display: grid; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; gap: 12px; }
 .demo-level input { width: 100%; margin: 5px 0 0; accent-color: var(--text); cursor: pointer; }
@@ -128,7 +135,7 @@
   .demo-toolbar { gap: 3px; }
   .demo-heading { gap: 5px; }
   .demo-logo { transform: scale(.8); }
-  .demo-header-button { transform: scale(.88); }
+
   .demo-row { gap: 6px; padding-inline: 6px; }
   .demo-row.includes-tabs { gap: 4px; }
   .demo-select select { padding-left: 6px; font-size: 12px; }
@@ -139,7 +146,9 @@
   .demo-select select, .demo-select select::picker(select) { appearance: base-select; }
   .demo-select select::picker-icon { display: none; }
   .demo-select select::picker(select) {
-    min-width: max(100%, 170px);
+    inline-size: max-content;
+    min-inline-size: min(170px, calc(100vw - 24px));
+    max-inline-size: min(240px, calc(100vw - 24px));
     margin-block: 4px;
     padding: 4px;
     border: 1px solid var(--edge);
