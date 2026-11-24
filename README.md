@@ -2,6 +2,8 @@
 
 Pick where each Windows app plays. Click the dancing speaker near the clock to send Discord to a headset, Chrome to a monitor, or YouTube Music to separate speakers.
 
+**[Download AuxeSetup.exe for Windows](https://github.com/rasithsenanayake/auxe/releases/latest/download/AuxeSetup.exe)**
+
 ## Screenshots
 
 | App outputs | Expanded Chrome tabs |
@@ -12,7 +14,9 @@ Screenshots use sample apps and devices.
 
 ## Install
 
-On Windows 11 x64, run `.\build.ps1` from PowerShell, then open `bin\AuxeSetup.exe`. The unsigned installer adds Auxe to the Start menu and launches it in the notification area. The build uses the .NET Framework already included with Windows.
+Download and run **AuxeSetup.exe** on Windows 11 x64. The unsigned installer adds Auxe to the Start menu and launches it in the notification area.
+
+To build from source, run `.\build.ps1` in PowerShell. It creates `bin\AuxeSetup.exe`.
 
 Start audio in an app, open Auxe, and pick its output. Choose **System default** to clear a route. If an app stays on the old output, restart playback or rejoin the call.
 

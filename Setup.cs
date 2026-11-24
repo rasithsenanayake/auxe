@@ -54,7 +54,7 @@ static class Setup
             using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
             {
                 key.SetValue("DisplayName", "Auxe");
-                key.SetValue("DisplayVersion", "0.1.0");
+                key.SetValue("DisplayVersion", "0.1.1");
                 key.SetValue("DisplayIcon", exe);
                 key.SetValue("InstallLocation", root);
                 key.SetValue("UninstallString", "\"powershell.exe\" -NoProfile -ExecutionPolicy Bypass -File \"" + Path.Combine(root, "uninstall.ps1") + "\"");

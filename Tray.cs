@@ -182,7 +182,7 @@ sealed class Tray : ApplicationContext
             status.SetBounds(19, 60 + contentHeight, 380, 30);
             panel.Location = new Point(Math.Max(area.Left, Math.Min(anchor.X - 205, area.Right - panel.Width)),
                 Math.Max(area.Top, Math.Min(anchor.Y, area.Bottom) - panel.Height - 9));
-            using (var clip = Rounded(new Rectangle(0, 0, panel.Width, panel.Height), 16))
+            using (var clip = Rounded(new Rectangle(0, 0, panel.Width, panel.Height), 26))
             {
                 var old = panel.Region;
                 panel.Region = new Region(clip);
@@ -207,25 +207,24 @@ sealed class Tray : ApplicationContext
     void AddRow(string name, string subtitle, List<Output> outputs, string selected, Action<Output> change, bool expander)
     {
         var row = new Panel { Width = 367, Height = 59, Margin = new Padding(0, 0, 0, 5), BackColor = Color.FromArgb(36, 41, 53) };
-        using (var clip = Rounded(row.ClientRectangle, 10)) row.Region = new Region(clip);
+        using (var clip = Rounded(row.ClientRectangle, 20)) row.Region = new Region(clip);
         var title = new Label { Text = name, UseMnemonic = false, AutoEllipsis = true, Font = rowFont, Bounds = new Rectangle(11, 7, outputs == null ? 306 : 158, 22) };
         var detail = new Label { Text = subtitle, UseMnemonic = false, AutoEllipsis = true, ForeColor = Color.FromArgb(170, 185, 210), Bounds = new Rectangle(11, 29, outputs == null ? 306 : 158, 23) };
         row.Controls.AddRange(new Control[] { title, detail });
         if (outputs != null)
         {
-            var combo = new ComboBox { AccessibleName = name + " output", DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.Flat, ForeColor = panel.ForeColor, BackColor = Color.FromArgb(49, 57, 73),
-                Bounds = new Rectangle(175, 16, expander ? 148 : 180, 27), DropDownWidth = 290 };
-            combo.Items.AddRange(outputs.Cast<object>().ToArray());
-            combo.SelectedIndex = outputs.FindIndex(output => output.Id == selected);
-            if (combo.SelectedIndex < 0) combo.SelectedIndex = 0;
-            combo.SelectionChangeCommitted += (s, e) =>
+            var picker = new OutputPicker(outputs, selected, output =>
             {
-                try { change((Output)combo.SelectedItem); }
+                try { change(output); return true; }
                 catch (COMException) { status.Text = "Windows could not change the output."; signature = null; }
                 catch (InvalidOperationException error) { status.Text = error.Message; signature = null; }
+                return false;
+            })
+            {
+                AccessibleName = name + " output",
+                Bounds = new Rectangle(175, 12, expander ? 148 : 180, 35)
             };
-            row.Controls.Add(combo);
+            row.Controls.Add(picker);
         }
         if (expander)
         {
@@ -238,7 +237,7 @@ sealed class Tray : ApplicationContext
         rows.Controls.Add(row);
     }
 
-    static GraphicsPath Rounded(Rectangle bounds, int radius)
+    internal static GraphicsPath Rounded(Rectangle bounds, int radius)
     {
         var path = new GraphicsPath();
         path.AddArc(bounds.Left, bounds.Top, radius, radius, 180, 90);
@@ -296,4 +295,142 @@ sealed class Tray : ApplicationContext
     }
 
     [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr icon);
+}
+
+sealed class OutputPicker : Button
+{
+    static readonly Color Surface = Color.FromArgb(41, 49, 66);
+    static readonly Color Highlight = Color.FromArgb(52, 65, 88);
+    static readonly Color Ink = Color.FromArgb(239, 242, 249);
+    static readonly Color Accent = Color.FromArgb(133, 206, 249);
+    readonly ContextMenuStrip menu;
+    bool hover;
+    bool opening;
+    ToolStripMenuItem current;
+
+    public bool MenuOpen { get { return opening || menu.Visible; } }
+
+    public OutputPicker(List<Output> outputs, string selected, Func<Output, bool> commit)
+    {
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        UseMnemonic = false;
+        Cursor = Cursors.Hand;
+        AccessibleRole = AccessibleRole.ButtonMenu;
+        menu = new ContextMenuStrip
+        {
+            Renderer = new PickerRenderer(),
+            ShowImageMargin = false,
+            ShowCheckMargin = false,
+            Padding = new Padding(5),
+            Font = Font,
+            BackColor = Surface,
+            ForeColor = Ink
+        };
+
+        foreach (var output in outputs)
+        {
+            var item = new ToolStripMenuItem(output.Name.Replace("&", "&&"))
+            {
+                ForeColor = Ink,
+                Padding = new Padding(9, 5, 26, 5)
+            };
+            item.Click += (sender, args) =>
+            {
+                if (!commit(output)) return;
+                current.Checked = false;
+                current = item;
+                current.Checked = true;
+                Text = output.Name;
+                Invalidate();
+            };
+            menu.Items.Add(item);
+            if (output.Id == selected) current = item;
+        }
+        current = current ?? (ToolStripMenuItem)menu.Items[0];
+        current.Checked = true;
+        Text = outputs[menu.Items.IndexOf(current)].Name;
+        menu.SizeChanged += (sender, args) =>
+        {
+            if (menu.Width < 14 || menu.Height < 14) return;
+            using (var path = Tray.Rounded(menu.ClientRectangle, 14))
+            {
+                var previous = menu.Region;
+                menu.Region = new Region(path);
+                if (previous != null) previous.Dispose();
+            }
+        };
+        menu.Closed += (sender, args) => Invalidate();
+    }
+
+    protected override void OnClick(EventArgs args)
+    {
+        base.OnClick(args);
+        if (menu.Visible) { menu.Close(); return; }
+        opening = true;
+        try
+        {
+            menu.Show(this, new Point(Width, Height + 4), ToolStripDropDownDirection.BelowLeft);
+            current.Select();
+        }
+        finally { opening = false; Invalidate(); }
+    }
+
+    protected override void OnMouseEnter(EventArgs args) { base.OnMouseEnter(args); hover = true; Invalidate(); }
+    protected override void OnMouseLeave(EventArgs args) { base.OnMouseLeave(args); hover = false; Invalidate(); }
+    protected override void OnGotFocus(EventArgs args) { base.OnGotFocus(args); Invalidate(); }
+    protected override void OnLostFocus(EventArgs args) { base.OnLostFocus(args); Invalidate(); }
+
+    protected override void OnPaint(PaintEventArgs args)
+    {
+        var graphics = args.Graphics;
+        graphics.Clear(Parent.BackColor);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
+        using (var path = Tray.Rounded(bounds, 16))
+        using (var fill = new SolidBrush(hover || MenuOpen ? Highlight : Surface))
+        using (var border = new Pen(Focused || MenuOpen ? Accent : Color.FromArgb(73, 85, 107)))
+        using (var chevron = new Pen(Accent, 1.5f))
+        {
+            graphics.FillPath(fill, path);
+            graphics.DrawPath(border, path);
+            TextRenderer.DrawText(graphics, Text, Font, new Rectangle(11, 0, Width - 35, Height), Ink,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+            var x = Width - 17;
+            var y = Height / 2;
+            graphics.DrawLines(chevron, new[] { new Point(x - 4, y - 2), new Point(x, y + 2), new Point(x + 4, y - 2) });
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && menu != null) menu.Dispose();
+        base.Dispose(disposing);
+    }
+
+    sealed class PickerRenderer : ToolStripRenderer
+    {
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs args)
+        {
+            args.Graphics.Clear(Surface);
+        }
+
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs args)
+        {
+            var item = (ToolStripMenuItem)args.Item;
+            if (!item.Selected && !item.Checked) return;
+            args.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var path = Tray.Rounded(new Rectangle(0, 0, item.Width, item.Height), 12))
+            using (var fill = new SolidBrush(item.Selected ? Highlight : Surface))
+                args.Graphics.FillPath(fill, path);
+            if (item.Checked)
+            {
+                var x = item.Width - 15;
+                var y = item.Height / 2;
+                using (var pen = new Pen(Accent, 1.7f))
+                    args.Graphics.DrawLines(pen, new[] { new Point(x - 5, y), new Point(x - 2, y + 3), new Point(x + 4, y - 4) });
+            }
+        }
+    }
 }
