@@ -46,7 +46,7 @@ If Chrome only shows the default output, open the companion’s options and choo
 
 ## Updates
 
-Automatic updates are on by default for installed copies. Auxe checks GitHub Releases for a newer installer, verifies its SHA-256 digest, and installs it after the tray panel is closed and Chrome tab routing is idle. In **Settings**, choose **Check for updates** to download manually, then **Install downloaded update**. You can turn automatic checks off there too. Older Auxe builds need this installer once to receive future updates.
+Automatic updates are on by default for installed copies. Auxe checks GitHub Releases for a newer installer, verifies its SHA-256 digest, and installs it after the tray panel is closed and Chrome tab routing is idle. In **Settings**, choose **Check for updates** to download manually, then **Install update**. You can turn automatic checks off there too. Older Auxe builds need this installer once to receive future updates.
 
 ## Privacy
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auxe Companion",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "minimum_chrome_version": "116",
   "description": "Choose separate playback outputs for Chrome tabs and installed YouTube Music.",
   "permissions": [

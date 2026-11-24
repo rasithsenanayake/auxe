@@ -148,8 +148,9 @@ sealed class Tray : ApplicationContext
         {
             var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Startup.Executable), "chrome");
             MessageBox.Show(panel,
-                "Open chrome://extensions in Chrome, enable Developer mode, and choose Load unpacked. Select this folder:\n\n" +
-                folder + "\n\nIf Auxe Companion is already there, click Reload. In the YouTube Music app, press Ctrl+Shift+U or right-click and choose Toggle Auxe output for YouTube Music.",
+                "1. Open chrome://extensions and turn on Developer mode.\n" +
+                "2. Click Load unpacked and select this folder:\n\n" + folder +
+                "\n\nIf Auxe Companion is already listed, click Reload. Then press Ctrl+Shift+U in the tab or YouTube Music window you want to route.",
                 "Chrome companion setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
         settingsMenu.Opening += (sender, args) =>
@@ -157,7 +158,7 @@ sealed class Tray : ApplicationContext
             startupItem.Checked = Startup.Enabled;
 
             updatesItem.Checked = Updates.Enabled;
-            downloadItem.Text = readyUpdate == null ? "Check for updates" : "Install downloaded update";
+            downloadItem.Text = readyUpdate == null ? "Check for updates" : "Install update";
             downloadItem.Enabled = !checkingUpdate;
         };
         updatesItem.Click += (sender, args) =>
@@ -170,7 +171,7 @@ sealed class Tray : ApplicationContext
         {
             if (!string.Equals(Application.ExecutablePath, Startup.Executable, StringComparison.OrdinalIgnoreCase))
             {
-                SetStatus("Install Auxe to receive updates.");
+                SetStatus("Run Auxe Setup to enable updates.");
                 return;
             }
             if (readyUpdate != null) ApplyUpdate(true);
@@ -212,7 +213,7 @@ sealed class Tray : ApplicationContext
         if (readyUpdate == null)
         {
             checkingUpdate = true;
-            if (manual) SetStatus("Checking GitHub for an update…");
+            if (manual) SetStatus("Checking for updates…");
             updateTimer.Interval = 12 * 60 * 60 * 1000;
             try
             {
@@ -220,7 +221,7 @@ sealed class Tray : ApplicationContext
                 var installer = await Task.Run(() => Updates.Download(version));
                 if (disposed) return;
                 readyUpdate = installer;
-                if (manual) SetStatus(installer == null ? "Auxe is up to date." : "Update downloaded. Install it from Settings.");
+                if (manual) SetStatus(installer == null ? "You’re up to date." : "Update ready. Open Settings to install.");
             }
             catch (Exception error)
             {
@@ -246,7 +247,7 @@ sealed class Tray : ApplicationContext
     {
         if (bridge.Sources().Any(source => source.Enabled) || (!manual && panel.Visible))
         {
-            if (manual) SetStatus("Turn off Chrome tab routing before updating.");
+            if (manual) SetStatus("Pause Chrome tab routing to install the update.");
             else updateTimer.Interval = 30000;
             return;
         }
@@ -262,7 +263,7 @@ sealed class Tray : ApplicationContext
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            if (manual) SetStatus("Windows could not open the update installer.");
+            if (manual) SetStatus("Couldn’t open the installer. Try again.");
             else updateTimer.Interval = 60 * 60 * 1000;
         }
     }
@@ -461,7 +462,7 @@ sealed class Tray : ApplicationContext
         }
         catch (COMException)
         {
-            if (!disposed) { status.Text = "Windows audio is unavailable."; nativeAudioUnavailable = true; }
+            if (!disposed) { status.Text = "Can’t connect to Windows audio."; nativeAudioUnavailable = true; }
         }
         finally { refreshing = false; }
     }
@@ -510,7 +511,7 @@ sealed class Tray : ApplicationContext
                 if (requested.TryGetValue(app.Key, out pending))
                 {
                     subtitle = Stopwatch.GetTimestamp() < pending.Item2
-                            ? "Switching output…" : "Restart playback to switch";
+                            ? "Switching output…" : "Restart playback to apply";
                 }
                 string preference;
                 if (!preferences.TryGetValue(app.Key, out preference)) preference = id;
@@ -527,7 +528,7 @@ sealed class Tray : ApplicationContext
             AddChromeRows(chrome.Where(source => source.Standalone), false);
             if (rows.Controls.Count == 0)
             {
-                AddRow("No apps playing", "Start playback to choose an output.", null, null, null, false);
+                AddRow("No audio yet", "Play audio in an app to see it here.", null, null, null, false);
             }
             SizePanel(rows.Controls.Count);
         }
@@ -566,8 +567,8 @@ sealed class Tray : ApplicationContext
             if (disposed) return false;
             if (output != null && !chromeOverrides) requested[key] = Tuple.Create(output, Stopwatch.GetTimestamp() + Stopwatch.Frequency * 3);
             else requested.Remove(key);
-            status.Text = chromeOverrides ? "Chrome output saved. Tab overrides stay active."
-                : output == null ? "Using Windows defaults for new playback." : "";
+            status.Text = chromeOverrides ? "Chrome output saved. Tab routes stay active."
+                : output == null ? "New playback will use the Windows default." : "";
             return true;
         }
         finally { routing = false; }
@@ -578,7 +579,7 @@ sealed class Tray : ApplicationContext
         foreach (var source in sources)
         {
             AddRow(source.Name,
-                source.Status ?? (source.Enabled ? "Chrome audio" : "Enable in Chrome with Ctrl+Shift+U"),
+                source.Status ?? (source.Enabled ? "Chrome playback" : "Press Ctrl+Shift+U to enable routing"),
                 source.Enabled ? source.Outputs : null, source.Selected,
                                 async selected =>
                 {
@@ -667,7 +668,7 @@ sealed class Tray : ApplicationContext
                 try { return await change(output); }
                 catch (COMException) { status.Text = "Windows could not change the output."; signature = null; }
                 catch (InvalidOperationException error) { status.Text = error.Message; signature = null; }
-                catch (System.IO.IOException) { status.Text = "Chrome disconnected. Re-enable this tab in Chrome."; signature = null; }
+                catch (System.IO.IOException) { status.Text = "Chrome disconnected. Re-enable the tab."; signature = null; }
                 return false;
             })
             {

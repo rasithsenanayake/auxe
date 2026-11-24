@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -59,8 +59,8 @@ static class Setup
             var description = new Label
             {
                 Text = uninstall
-                    ? "Remove Auxe from this account, including its Start menu shortcut and startup setting."
-                    : "Choose where each Windows app plays. Install Auxe for this account and open it near the clock.",
+                    ? "Remove Auxe, its Start menu shortcut, and its startup setting from this Windows account."
+                    : "Choose where each app plays. Auxe installs for this Windows account and opens beside the clock.",
                 Bounds = new Rectangle(26, 91, 378, 64)
             };
             var install = new SetupButton(true)
@@ -83,13 +83,13 @@ static class Setup
                 try
                 {
                     Install();
-                    description.Text = "Auxe is running near the clock. Open the tray overflow arrow if the speaker is hidden.";
+                    description.Text = "Auxe is ready. Look for the speaker beside the clock or under the tray arrow.";
                     install.Text = "Done";
                     cancel.Visible = false;
                 }
                 catch (Exception error)
                 {
-                    description.Text = "Setup couldn't finish. Exit any running copy of Auxe and try again.";
+                    description.Text = "Setup couldn’t finish. Quit Auxe from the tray, then try again.";
                     MessageBox.Show(window, error.Message, "Auxe Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     cancel.Enabled = true;
                 }
@@ -160,7 +160,7 @@ static class Setup
         using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             key.SetValue("DisplayName", "Auxe");
-            key.SetValue("DisplayVersion", "0.1.5");
+            key.SetValue("DisplayVersion", "0.1.6");
             key.SetValue("Publisher", "Web X Agency");
             key.SetValue("DisplayIcon", exe);
             key.SetValue("InstallLocation", root);
