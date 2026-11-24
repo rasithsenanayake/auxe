@@ -1,4 +1,11 @@
-:root { --tray-preview-ready: 1; }
+:root { --tray-preview-ready: 2; }
+
+@font-face {
+  font-family: "Geist Preview";
+  src: url("assets/Geist-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
 
 .gallery > figure { display: grid; grid-template-rows: 1fr auto; min-width: 0; }
 .gallery .frame[data-demo] { padding: clamp(13px, 3vw, 34px); }
@@ -18,7 +25,7 @@
   color: var(--text);
   color-scheme: dark;
   box-shadow: 0 20px 40px #0005;
-  font: 13.5px/1.25 var(--body);
+  font: 500 13.5px/1.25 "Geist Preview", Geist, "Segoe UI", sans-serif;
 }
 .demo-panel.demo-light {
   --tray: #f6f6f4;
@@ -114,7 +121,7 @@
 .demo-select select {
   appearance: none; width: 100%; min-width: 0; height: 36px; padding: 0 25px 0 11px;
   border: 1px solid var(--edge); border-radius: 8px; background: var(--control); color: var(--text);
-  font: 13px var(--body); text-overflow: ellipsis; cursor: pointer;
+  font: inherit; font-size: 13px; text-overflow: ellipsis; cursor: pointer;
 }
 .demo-expand { position: relative; width: 24px; height: 30px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .demo-expand:hover, .demo-expand[aria-expanded="true"] { background: var(--control); }
@@ -135,4 +142,27 @@
   .demo-row.includes-tabs { gap: 4px; }
   .demo-select select { padding-left: 6px; font-size: 12px; }
   .demo-identity small { font-size: 11px; }
+}
+
+@supports (appearance: base-select) {
+  .demo-select select, .demo-select select::picker(select) { appearance: base-select; }
+  .demo-select select::picker-icon { display: none; }
+  .demo-select select::picker(select) {
+    min-width: max(100%, 170px);
+    margin-block: 4px;
+    padding: 4px;
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    background: var(--control);
+    color: var(--text);
+    box-shadow: 0 10px 24px #0005;
+    font: inherit;
+  }
+  .demo-select select option { min-height: 32px; padding: 6px 8px; border-radius: 6px; }
+  .demo-select select option:hover, .demo-select select option:focus-visible, .demo-select select option:checked {
+    background: var(--row);
+  }
+  .demo-select select option::checkmark { color: var(--text); }
+  .demo-select select:open { border-color: var(--muted-text); }
+  .demo-select:has(select:open)::after { transform: translateY(-25%) rotate(225deg); }
 }
