@@ -1,30 +1,23 @@
-# Soundmix
+# Auxe
 
-Soundmix puts a small, animated speaker in the Windows notification area. Click it to see which apps are playing and choose where each one plays. For example, send Discord to your headset, Chrome and WhatsApp to monitor speakers, and the installed YouTube Music app to Microlab speakers. Windows may list analog speakers by the name of the sound card they plug into.
+Pick where each Windows app plays. Click the dancing speaker near the clock to send Discord to a headset, Chrome to a monitor, or YouTube Music to separate speakers.
 
-## Install on Windows 11 x64
+## Screenshots
 
-1. Run `bin\SoundmixSetup.exe`. Setup installs for your Windows account, adds a Start menu shortcut, and launches Soundmix. It uses the .NET Framework already included with Windows 11.
-2. If the speaker is under the tray overflow arrow, drag it beside the clock. Right-click it to exit.
-3. Start audio in an app, then pick an output beside its name in Soundmix. Use **System default** to clear that app's preference.
+| App outputs | Expanded Chrome tabs |
+| --- | --- |
+| ![Auxe showing separate outputs for Discord, Chrome, WhatsApp, and YouTube Music](screenshots/app-outputs.png) | ![Auxe showing individual output selectors for two Chrome tabs](screenshots/chrome-tabs.png) |
 
-Windows can apply a changed route when playback reconnects. If the app stays on its old output, restart the app or rejoin the call. If the app has its own device setting, set it to its default output so it can follow Windows routing. Soundmix changes playback preferences only.
+Screenshots use sample apps and devices.
 
-## Optional Chrome companion
+## Install
 
-1. Open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**. Select `%LOCALAPPDATA%\Programs\Soundmix\chrome`.
-2. Open the companion's **Extension options**, then choose **Allow device access** if only the default output is listed. Chrome may request microphone permission to expose output device names. The permission check stops its stream immediately. Playback stays local, and the native connection carries only display and routing data.
-3. Play audio in your tab or installed YouTube Music window. Use **Ctrl+Shift+U** or the companion's toolbar button where available. You can change the shortcut at `chrome://extensions/shortcuts`. Repeat the activation for each new tab or window you want to route.
-4. Expand **Chrome** in Soundmix to see its tabs. The installed YouTube Music window has its own row when Chrome identifies it as standalone. Enable audio routing again for new tabs or after relaunching Chrome.
+On Windows 11 x64, run `.\build.ps1` from PowerShell, then open `bin\AuxeSetup.exe`. The unsigned installer adds Auxe to the Start menu and launches it in the notification area. The build uses the .NET Framework already included with Windows.
 
-If a source cannot be enabled or Chrome does not expose a particular output, it can still follow Chrome's Windows-level route. Per-tab capture depends on Chrome's compatibility with the source.
+Start audio in an app, open Auxe, and pick its output. Choose **System default** to clear a route. If an app stays on the old output, restart playback or rejoin the call.
 
-## Build
+## Chrome tabs and YouTube Music
 
-From PowerShell in this folder:
+Load `%LOCALAPPDATA%\Programs\Auxe\chrome` as an unpacked extension from `chrome://extensions` with **Developer mode** enabled. Play audio in Chrome or the installed YouTube Music app and press **Ctrl+Shift+U** to enable that source for the current session. Expand Chrome in Auxe to see its tabs.
 
-```powershell
-.\build.ps1
-```
-
-The build uses the Windows .NET Framework compiler and produces `bin\Soundmix.exe` and `bin\SoundmixSetup.exe`. There are no NuGet or npm dependencies. The installer is unsigned. To remove it, use **Settings → Apps → Installed apps → Soundmix** and remove the optional companion from Chrome separately.
+If only the default output appears, use **Allow device access** in the extension options. Chrome may ask for microphone permission to list playback devices. Auxe stops the permission-check stream immediately.

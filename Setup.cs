@@ -8,20 +8,20 @@ using Microsoft.Win32;
 
 static class Setup
 {
-    const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Soundmix";
-    const string ChromeKey = @"Software\Google\Chrome\NativeMessagingHosts\com.soundmix.companion";
+    const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Auxe";
+    const string ChromeKey = @"Software\Google\Chrome\NativeMessagingHosts\com.auxe.companion";
     const string ExtensionId = "fifgmenkkbfeanfdcjglbpoijipdmklj";
 
     [STAThread]
     static void Main()
     {
         Application.EnableVisualStyles();
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Soundmix");
-        var exe = Path.Combine(root, "Soundmix.exe");
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Auxe");
+        var exe = Path.Combine(root, "Auxe.exe");
         var chrome = Path.Combine(root, "chrome");
-        var startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Soundmix.lnk");
-        if (MessageBox.Show("Install Soundmix for your Windows account?\n\nThe included Chrome companion can be enabled separately.",
-            "Soundmix Setup", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+        var startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Auxe.lnk");
+        if (MessageBox.Show("Install Auxe for your Windows account?\n\nThe included Chrome companion can be enabled separately.",
+            "Auxe Setup", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
 
         try
         {
@@ -41,7 +41,7 @@ static class Setup
             }
             var host = Path.Combine(root, "chrome-host.json");
             File.WriteAllText(host, new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {
-                name = "com.soundmix.companion", description = "Soundmix tray connection",
+                name = "com.auxe.companion", description = "Auxe tray connection",
                 path = exe, type = "stdio", allowed_origins = new[] { "chrome-extension://" + ExtensionId + "/" }
             }));
             using (var key = Registry.CurrentUser.CreateSubKey(ChromeKey)) key.SetValue("", host);
@@ -53,7 +53,7 @@ static class Setup
             shortcut.Save();
             using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
             {
-                key.SetValue("DisplayName", "Soundmix");
+                key.SetValue("DisplayName", "Auxe");
                 key.SetValue("DisplayVersion", "0.1.0");
                 key.SetValue("DisplayIcon", exe);
                 key.SetValue("InstallLocation", root);
@@ -62,13 +62,13 @@ static class Setup
                 key.SetValue("NoRepair", 1);
             }
             Process.Start(exe);
-            MessageBox.Show("Soundmix is running in the notification area. For per-tab routing, load this folder as an unpacked extension in Chrome:\n\n" + chrome,
-                "Soundmix installed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("Auxe is running in the notification area. For per-tab routing, load this folder as an unpacked extension in Chrome:\n\n" + chrome,
+                "Auxe installed", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception error)
         {
-            MessageBox.Show(error.Message + "\n\nIf Soundmix is running, exit it from the tray before reinstalling.",
-                "Soundmix Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(error.Message + "\n\nIf Auxe is running, exit it from the tray before reinstalling.",
+                "Auxe Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 

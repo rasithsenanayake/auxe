@@ -44,7 +44,7 @@ public sealed class ChromeDevice
 sealed class ChromeBridge : IDisposable
 {
     static readonly System.Security.Principal.SecurityIdentifier User = System.Security.Principal.WindowsIdentity.GetCurrent().User;
-    static readonly string PipeName = "Soundmix." + User.Value;
+    static readonly string PipeName = "Auxe." + User.Value;
     const int Limit = 512 * 1024;
     readonly object gate = new object();
     readonly List<Connection> connections = new List<Connection>();
@@ -60,7 +60,7 @@ sealed class ChromeBridge : IDisposable
 
     public ChromeBridge()
     {
-        new Thread(Listen) { IsBackground = true, Name = "Soundmix Chrome listener" }.Start();
+        new Thread(Listen) { IsBackground = true, Name = "Auxe Chrome listener" }.Start();
     }
 
     void Listen()
@@ -87,7 +87,7 @@ sealed class ChromeBridge : IDisposable
                 if (connections.Count >= 8) { pipe.Dispose(); continue; }
                 var connection = new Connection { Pipe = pipe };
                 connections.Add(connection);
-                new Thread(() => Read(connection)) { IsBackground = true, Name = "Soundmix Chrome connection" }.Start();
+                new Thread(() => Read(connection)) { IsBackground = true, Name = "Auxe Chrome connection" }.Start();
             }
         }
     }

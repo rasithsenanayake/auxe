@@ -18,7 +18,7 @@ static class Program
             ChromeBridge.RunHost();
             return;
         }
-        using (var mutex = new Mutex(false, @"Local\Soundmix.Tray"))
+        using (var mutex = new Mutex(false, @"Local\Auxe.Tray"))
         {
             if (!mutex.WaitOne(0)) return;
             Application.EnableVisualStyles();
@@ -51,10 +51,10 @@ sealed class Tray : ApplicationContext
     public Tray()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Open Soundmix", null, (s, e) => ShowPanel());
+        menu.Items.Add("Open Auxe", null, (s, e) => ShowPanel());
         menu.Items.Add("Exit", null, (s, e) => ExitThread());
         tray.Icon = frames[0];
-        tray.Text = "Soundmix";
+        tray.Text = "Auxe";
         tray.ContextMenuStrip = menu;
         tray.MouseClick += (s, e) =>
         {
@@ -66,7 +66,7 @@ sealed class Tray : ApplicationContext
         animation.Start();
         refresh.Tick += (s, e) => RefreshRows();
 
-        panel.Text = "Soundmix";
+        panel.Text = "Auxe";
         panel.ShowInTaskbar = false;
         panel.FormBorderStyle = FormBorderStyle.None;
         panel.StartPosition = FormStartPosition.Manual;
@@ -83,7 +83,7 @@ sealed class Tray : ApplicationContext
         };
         panel.VisibleChanged += (s, e) => { if (panel.Visible) refresh.Start(); else refresh.Stop(); };
         panel.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) panel.Hide(); };
-        heading.Text = "Soundmix";
+        heading.Text = "Auxe";
         heading.Font = new Font("Segoe UI Semibold", 16);
         heading.SetBounds(16, 11, 370, 36);
         rows.SetBounds(16, 52, 388, 50);

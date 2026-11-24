@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Soundmix Companion",
+  "name": "Auxe Companion",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
   "description": "Choose separate playback outputs for Chrome tabs and installed YouTube Music.",
@@ -15,7 +15,7 @@
     "service_worker": "worker.js"
   },
   "action": {
-    "default_title": "Enable Soundmix for this tab"
+    "default_title": "Enable Auxe for this tab"
   },
   "commands": {
     "_execute_action": {

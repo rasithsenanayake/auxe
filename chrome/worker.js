@@ -1,11 +1,11 @@
-const host = "com.soundmix.companion";
+const host = "com.auxe.companion";
 const errors = new Map();
 let nativePort;
 let queue = Promise.resolve();
 let snapshotTimer;
 
 function enqueue(callback) {
-  queue = queue.then(callback).catch(error => console.warn("Soundmix:", error.message));
+  queue = queue.then(callback).catch(error => console.warn("Auxe:", error.message));
   return queue;
 }
 
